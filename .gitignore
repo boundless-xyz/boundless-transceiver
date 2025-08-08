@@ -18,3 +18,8 @@ yarn.lock
 !broadcast
 broadcast/*
 broadcast/*/31337/
+
+# rust
+Cargo.lock
+zkvm/guest/Cargo.lock
+target/

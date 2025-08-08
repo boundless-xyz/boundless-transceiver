@@ -73,7 +73,11 @@ contract BoundlessTransceiver is Transceiver {
         return 0; // Placeholder for delivery price logic
     }
 
-    /// Callable by anyone who is routing a message
+    /// @notice Process a message along with its ZK proof of inclusion in the origin chain
+    /// @param encodedMessage The Wormhole encoded message containing the NTT Manager message.
+    /// @param journalData The journal data that the proof commits to
+    /// @param seal The opaque ZK proof seal that allows it to be verified on-chain
+    /// @dev This function verifies the ZK proof, checks the commitments, then forwards the message to the NTT Manager.
     function receiveMessage(
         bytes calldata encodedMessage, bytes calldata journalData, bytes calldata seal
     ) external {
@@ -85,6 +89,7 @@ contract BoundlessTransceiver is Transceiver {
         require(recoveredDigest == journal.nttManagerMessageDigest, "Computed digest does not match the journal");
 
         // TOOD: Validate the steel commitment against a trusted block root in the BoundlessReceiver
+        //       currently this will try to verify against the current chains block root which is not correct
         require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the ZK proof

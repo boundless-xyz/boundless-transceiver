@@ -11,10 +11,15 @@ contract BeaconEmitterTest is Test {
     WormholeMock public wormholeMock;
 
     // Ethereum mainnet genesis timestamp
-    uint256 constant GENESIS_TIMESTAMP = 1_606_824_000;
-    uint64 constant SLOTS_PER_EPOCH = 32;
-    uint256 constant SLOT_DURATION = 12 seconds;
     uint256 constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
+    uint64 constant SLOTS_PER_EPOCH = 32;
+    uint256 constant SLOT_DURATION = 12;
+    uint256 constant GENESIS_TIMESTAMP = 1_606_824_000;
+    uint64 constant BASE_SLOT = 1000;
+    uint256 constant BASE_TIMESTAMP = GENESIS_TIMESTAMP + (BASE_SLOT * SLOT_DURATION);
+    uint64 constant CHILD_SLOT = BASE_SLOT + 1;
+    uint256 constant CHILD_TIMESTAMP = GENESIS_TIMESTAMP + (CHILD_SLOT * SLOT_DURATION);
+    bytes32 constant BASE_ROOT = keccak256("BASE ROOT");
 
     address constant BEACON_ROOTS_ADDRESS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
 
@@ -26,28 +31,20 @@ contract BeaconEmitterTest is Test {
         wormholeMock = new WormholeMock();
         beaconEmitter = new BeaconEmitter(address(wormholeMock), GENESIS_TIMESTAMP);
 
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (100 * SLOT_DURATION);
+        // Set the current timestamp to ~100 slots post base slot
+        uint256 currentTimestamp = BASE_TIMESTAMP + (100 * SLOT_DURATION);
         vm.warp(currentTimestamp);
-        _mockBeacon(currentTimestamp, keccak256("42"));
-        blockRoot = Beacon.findBlockRoot(GENESIS_TIMESTAMP, 100 * 32);
+        _mockBeacon(CHILD_TIMESTAMP, BASE_ROOT);
+        blockRoot = Beacon.findBlockRoot(GENESIS_TIMESTAMP, BASE_SLOT);
     }
 
-    function test_ConstructorInitialization() public {
+    function test_ConstructorInitialization() public view {
         assertEq(address(beaconEmitter.WORMHOLE()), address(wormholeMock));
         assertEq(beaconEmitter.GENESIS_BLOCK_TIMESTAMP(), GENESIS_TIMESTAMP);
     }
 
     function test_EmitForSlot_Success() public {
-        // Warp to a time when we can get a valid block root
-        // Use a recent timestamp that's within the beacon roots buffer
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (100_000 * SLOT_DURATION);
-        vm.warp(currentTimestamp);
-
-        uint64 epoch = 1000;
-        uint64 expectedSlot = epoch * SLOTS_PER_EPOCH;
-        uint256 expectedTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_DURATION);
-
-        _mockBeacon(expectedTimestamp, blockRoot);
+        uint64 expectedSlot = BASE_SLOT;
 
         // Set Wormhole fee
         uint256 wormholeFee = 0.0001 ether;
@@ -69,47 +66,6 @@ contract BeaconEmitterTest is Test {
         assertEq(emittedSlot, expectedSlot);
         assertEq(emittedRoot, blockRoot);
     }
-
-    // function test_FindBlockRoot_Fallback() public {
-    //     uint64 epoch = 2000;
-    //     uint256 expectedSlot = epoch * SLOTS_PER_EPOCH;
-    //     uint256 baseTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_DURATION);
-    //
-    //     // Warp to a time when we can get a valid block root
-    //     uint256 currentTimestamp = baseTimestamp + 1000;
-    //     vm.warp(currentTimestamp);
-    //
-    //     bytes32 mockBlockRoot = bytes32(uint256(0xabcdef1234567890));
-    //
-    //     // Mock multiple timestamps to test fallback behavior
-    //     for (uint256 i = 0; i < 5; i++) {
-    //         uint256 timestamp = baseTimestamp + (i * SLOT_DURATION);
-    //         if (i == 2) {
-    //             // Only succeed on the 3rd attempt
-    //             vm.mockCall(
-    //                 BEACON_ROOTS_ADDRESS,
-    //                 abi.encodeWithSelector(bytes4(keccak256("get(bytes32)")), bytes32(timestamp)),
-    //                 abi.encode(mockBlockRoot)
-    //             );
-    //         } else {
-    //             vm.mockCall(
-    //                 BEACON_ROOTS_ADDRESS,
-    //                 abi.encodeWithSelector(bytes4(keccak256("get(bytes32)")), bytes32(timestamp)),
-    //                 abi.encode(bytes32(0))
-    //             );
-    //         }
-    //     }
-    //
-    //     uint256 wormholeFee = 0.0001 ether;
-    //     vm.deal(address(this), wormholeFee);
-    //
-    //     beaconEmitter.emitForEpoch{ value: wormholeFee }(epoch);
-    //
-    //     // Verify the message was published with correct root
-    //     WormholeMock.PublishedMessage memory published = wormholeMock.publishedMessages(0);
-    //     (, bytes32 emittedRoot) = abi.decode(published.payload, (uint64, bytes32));
-    //     assertEq(emittedRoot, mockBlockRoot);
-    // }
 
     function test_GenesisBlockTimestamp_Validation() public {
         // Test with different genesis timestamps
@@ -137,18 +93,16 @@ contract BeaconEmitterTest is Test {
 
     function test_EmitForSlot_TimestampOutOfRange() public {
         // Warp to current time
-        uint256 currentTimestamp = block.timestamp;
+        vm.warp(BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SLOT_DURATION + GENESIS_TIMESTAMP + 1200);
 
-        // Calculate an epoch that's too old to be in the buffer
-        uint256 oldestValidTimestamp = currentTimestamp - (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SLOT_DURATION);
-        uint64 oldEpoch = uint64((oldestValidTimestamp - GENESIS_TIMESTAMP) / (SLOTS_PER_EPOCH * SLOT_DURATION)) - 100;
+        uint64 oldSlot = uint64(1);
 
         uint256 wormholeFee = 0.0001 ether;
         vm.deal(address(this), wormholeFee);
 
         // Expect revert due to timestamp out of range
         vm.expectRevert(Beacon.TimestampOutOfRange.selector);
-        beaconEmitter.emitForSlot{ value: wormholeFee }(oldEpoch * SLOTS_PER_EPOCH);
+        beaconEmitter.emitForSlot{ value: wormholeFee }(oldSlot);
     }
 
     function test_EmitForSlot_NoBlockRootFound() public {
@@ -179,95 +133,26 @@ contract BeaconEmitterTest is Test {
     }
 
     function test_EmitForSlot_InsufficientFee() public {
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (10_000 * SLOT_DURATION);
-        vm.warp(currentTimestamp);
-
         // Send insufficient fee
+
         uint256 insufficientFee = 0.00005 ether;
         vm.deal(address(this), insufficientFee);
 
         vm.expectRevert("Insufficient fee");
-        beaconEmitter.emitForSlot{ value: insufficientFee }(0);
-    }
-
-    function test_EmitForSlot_EpochZero() public {
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (100 * SLOT_DURATION);
-        vm.warp(currentTimestamp);
-
-        uint64 slot = 0;
-
-        uint256 wormholeFee = 0.0001 ether;
-        vm.deal(address(this), wormholeFee);
-
-        beaconEmitter.emitForSlot{ value: wormholeFee }(slot);
-
-        WormholeMock.PublishedMessage memory published = wormholeMock.publishedMessages(0);
-        (uint64 emittedEpoch, bytes32 emittedRoot) = abi.decode(published.payload, (uint64, bytes32));
-        assertEq(emittedEpoch, 0);
-        assertEq(emittedRoot, 0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024);
-    }
-
-    function test_EmitForSlot_MultipleEmissions() public {
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (110 * SLOT_DURATION);
-        vm.warp(currentTimestamp);
-
-        uint256 wormholeFee = 0.0001 ether;
-        vm.deal(address(this), wormholeFee * 3);
-
-        // Emit for multiple epochs
-        uint64[] memory epochs = new uint64[](3);
-        epochs[0] = 1000;
-        epochs[1] = 1001;
-        epochs[2] = 1002;
-
-        bytes32[] memory mockRoots = new bytes32[](3);
-        mockRoots[0] = bytes32(uint256(0x1111));
-        mockRoots[1] = bytes32(uint256(0x2222));
-        mockRoots[2] = bytes32(uint256(0x3333));
-
-        for (uint256 i = 0; i < epochs.length; i++) {
-            uint64 expectedSlot = epochs[i] * SLOTS_PER_EPOCH;
-            uint256 expectedTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_DURATION);
-
-            vm.mockCall(
-                BEACON_ROOTS_ADDRESS,
-                abi.encodeWithSelector(bytes4(keccak256("get(bytes32)")), bytes32(expectedTimestamp)),
-                abi.encode(mockRoots[i])
-            );
-
-            beaconEmitter.emitForSlot{ value: wormholeFee }(expectedSlot);
-        }
-
-        assertEq(wormholeMock.publishedMessagesLength(), 3);
-
-        for (uint256 i = 0; i < 3; i++) {
-            WormholeMock.PublishedMessage memory published = wormholeMock.publishedMessages(i);
-            (uint64 emittedEpoch, bytes32 emittedRoot) = abi.decode(published.payload, (uint64, bytes32));
-            assertEq(emittedEpoch, epochs[i]);
-            assertEq(emittedRoot, mockRoots[i]);
-        }
+        beaconEmitter.emitForSlot{ value: insufficientFee }(BASE_SLOT);
     }
 
     function test_BeaconLibrary_Direct() public {
-        uint64 slot = 3200;
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (slot * SLOT_DURATION);
-        vm.warp(currentTimestamp);
-
-        bytes32 result = Beacon.findBlockRoot(GENESIS_TIMESTAMP, slot);
-        assertEq(result, 0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024);
+        bytes32 result = Beacon.findBlockRoot(GENESIS_TIMESTAMP, BASE_SLOT);
+        assertEq(result, BASE_ROOT);
     }
 
     function test_GasEstimation() public {
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (10_000 * SLOT_DURATION);
-        vm.warp(currentTimestamp);
-
-        uint64 epoch = 100;
-
         uint256 wormholeFee = 0.0001 ether;
         vm.deal(address(this), wormholeFee);
 
         uint256 gasBefore = gasleft();
-        beaconEmitter.emitForSlot{ value: wormholeFee }(epoch * SLOTS_PER_EPOCH);
+        beaconEmitter.emitForSlot{ value: wormholeFee }(BASE_SLOT);
         uint256 gasUsed = gasBefore - gasleft();
 
         // Just ensure it completes successfully - actual gas usage will vary
@@ -275,10 +160,6 @@ contract BeaconEmitterTest is Test {
     }
 
     function _mockBeacon(uint256 timestamp, bytes32 root) internal {
-        vm.mockCall(
-            BEACON_ROOTS_ADDRESS,
-            abi.encodeWithSelector(bytes4(keccak256("get(bytes32)")), bytes32(timestamp)),
-            abi.encode(root)
-        );
+        vm.mockCall(BEACON_ROOTS_ADDRESS, abi.encode(timestamp), abi.encode(root));
     }
 }

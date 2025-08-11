@@ -33,10 +33,8 @@ contract BeaconEmitter {
     }
 
     function emitForSlot(uint64 slot) external payable {
-        uint256 wormholeFee = WORMHOLE.messageFee();
-
         bytes32 blockRoot = Beacon.findBlockRoot(GENESIS_BLOCK_TIMESTAMP, slot);
 
-        WORMHOLE.publishMessage{ value: wormholeFee }(0, abi.encode(slot, blockRoot), CONSISTENCY_LEVEL);
+        WORMHOLE.publishMessage{ value: msg.value }(0, abi.encode(slot, blockRoot), CONSISTENCY_LEVEL);
     }
 }

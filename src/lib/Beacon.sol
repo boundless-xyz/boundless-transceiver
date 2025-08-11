@@ -10,7 +10,7 @@ library Beacon {
 
     /// @notice Genesis beacon block timestamp for the Ethereum mainnet
     uint256 public constant ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP =
-        1606824000;
+        1_606_824_000;
 
     /// @notice The length of the beacon roots ring buffer.
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;

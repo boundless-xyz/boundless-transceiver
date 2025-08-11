@@ -4,9 +4,10 @@ pragma solidity >=0.8.28 <0.9.0;
 import { BaseScript } from "./Base.s.sol";
 import { BoundlessReceiver } from "../src/BoundlessReceiver.sol";
 import { ConsensusState, Checkpoint } from "../src/tseth.sol";
+import { console } from "forge-std/console.sol";
 
 contract DeployReceiver is BaseScript {
-    function run() public {
+    function run() public returns (address) {
         uint256 deployerPk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         bytes32 imageID = vm.envBytes32("IMAGE_ID");
         uint24 permissibleTimespan = uint24(vm.envUint("PERMISSIBLE_TIMESPAN"));
@@ -40,5 +41,8 @@ contract DeployReceiver is BaseScript {
             superAdmin
         );
         vm.stopBroadcast();
+
+        console.log("BoundlessReceiver: ", address(br));
+        return address(br);
     }
 }

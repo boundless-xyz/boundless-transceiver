@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloy_primitives::{Address, B256, FixedBytes};
+use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::sol;
 use risc0_steel::{Commitment, ethereum::EthEvmInput};
 
@@ -20,16 +20,17 @@ use risc0_steel::{Commitment, ethereum::EthEvmInput};
 pub struct GuestInput {
     pub commitment: EthEvmInput,
     pub contract_addr: Address,
-    pub msg_digest: B256,
+    pub encoded_message: Bytes,
 }
 
 sol! {
-    interface INttManager {
-        /// @notice Emitted when a message is sent from the nttManager.
-        /// @dev Topic0
-        ///      0x3e6ae56314c6da8b461d872f41c6d0bb69317b9d0232805aaccfa45df1a16fa0.
-        /// @param digest The digest of the message.
-        event TransferSent(bytes32 indexed digest);
+    interface IBoundlessTransceiver {
+      /// @notice Emitted when a message is sent from this transceiver.
+      /// @param recipientChain The chain ID of the recipient.
+      /// @param encoded_message The encoded TransceiverMessage.
+      event SendTransceiverMessage(
+          uint16 recipientChain, bytes encodedMessage
+      );
     }
 }
 
@@ -40,17 +41,7 @@ sol! {
         // which can be verified against the BoundlessReceiver contract
         Commitment commitment;
 
-        // Commits to the ntt manager message that was sent
-        bytes32 nttManagerMessageDigest;
-        // Commits to the NTT manager that emitted the message (wormhole encoded address)
-        bytes32 emitterNttManager;
+        // The encoded TransceiverMessage that this proof commits to
+        bytes encodedMessage;
     }
-}
-
-/// Converts an Ethereum address to a Wormhole universal address format (padded to 32 bytes).
-pub fn to_universal_address(addr: Address) -> FixedBytes<32> {
-    let addr_bytes = addr.as_slice();
-    let mut padded = [0u8; 32];
-    padded[12..].copy_from_slice(addr_bytes);
-    FixedBytes::from(padded)
 }

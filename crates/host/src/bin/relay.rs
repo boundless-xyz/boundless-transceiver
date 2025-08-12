@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloy_primitives::{Address, Bytes, TxHash};
+use alloy_primitives::{Address, TxHash};
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use common::Journal;
@@ -40,7 +40,7 @@ sol! {
       /// @param seal The opaque ZK proof seal that allows it to be verified on-chain
       /// @dev This function verifies the ZK proof, checks the commitments, then forwards the message to the NTT Manager.
       function receiveMessage(
-          bytes calldata encodedMessage, bytes calldata journalData, bytes calldata seal
+          bytes calldata journalData, bytes calldata seal
       ) external;
 
       bytes32 public immutable imageID;
@@ -63,24 +63,20 @@ struct Args {
     #[arg(long, env = "DEST_RPC_URL")]
     dest_rpc_url: Url,
 
-    /// Beacon API endpoint URL
-    ///
-    /// Steel uses a beacon block commitment instead of the execution block.
-    /// This allows proofs to be validated using the EIP-4788 beacon roots contract.
+    /// Beacon API endpoint URL for source (ethereum) chain
     #[arg(long, env = "BEACON_API_URL")]
     beacon_api_url: Url,
 
     /// Ethereum block to use for the beacon block commitment.
-    /// Can be any finalized block after the `execution_block`
-    /// Ideally is the *next* finalized block after the `execution_block`.
+    /// This should be the first epoch boundary block after the send transaction was included.
     #[arg(long, env = "COMMITMENT_BLOCK")]
     commitment_block: u64,
 
-    /// Address of the NTT contract on the source chain
+    /// Address of the BoundlessTransceiver contract on the source chain
     #[arg(long, env = "SRC_TRANSCEIVER_ADDRESS")]
     src_transceiver_addr: Address,
 
-    /// Address of the Boundless Transceiver contract on the destination chain
+    /// Address of the BoundlessTransceiver contract on the destination chain
     #[arg(long, env = "DEST_TRANSCEIVER_ADDRESS")]
     dst_transceiver_addr: Address,
 
@@ -139,8 +135,7 @@ async fn main() -> Result<()> {
         IBoundlessTransceiver::receiveMessageCall::SIGNATURE,
         contract.address()
     );
-    let call_builder =
-        contract.receiveMessage(receipt.journal.bytes.into(), seal.into(), Bytes::new());
+    let call_builder = contract.receiveMessage(receipt.journal.bytes.into(), seal.into());
 
     log::debug!("Send {} {}", contract.address(), call_builder.calldata());
     let pending_tx = call_builder.send().await?;

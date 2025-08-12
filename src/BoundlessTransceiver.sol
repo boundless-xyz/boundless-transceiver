@@ -10,6 +10,11 @@ import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.s
 
 contract BoundlessTransceiver is Transceiver {
 
+    /// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
+    /// @notice Magic string (constant value set by messaging provider) that idenfies the payload as an transceiver-emitted payload.
+    ///         Note that this is not a security critical field and is used for convenience to identify the payload type.
+    bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
+
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public immutable verifier;
 
@@ -22,17 +27,22 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice The Wormhole chain identifier of the source chain. Currently can only receive from Ethereum mainnet.
     uint16 sourceChainId = 2;
 
-    /// @notice Journal that is committed to by the guest ZKVM program.
+    /// @notice Journal that is committed to by the guest.
     struct Journal {
         // Commitment locks this proof to a specific block root
         // which can be verified against the BoundlessReceiver contract
         Steel.Commitment commitment;
 
-        // Commits to the ntt manager message that was sent
-        bytes32 nttManagerMessageDigest;
-        // Commits to the NTT manager that emitted the message (wormhole encoded address)
-        bytes32 emitterNttManager;
+        // The encoded TransceiverMessage that this proof commits to
+        bytes encodedMessage;
     }
+
+    /// @notice Emitted when a message is sent from this transceiver.
+    /// @param recipientChain The chain ID of the recipient.
+    /// @param encodedMessage The encoded TransceiverMessage.
+    event SendTransceiverMessage(
+        uint16 recipientChain, bytes encodedMessage
+    );
 
     constructor(
         address _manager,
@@ -57,40 +67,56 @@ contract BoundlessTransceiver is Transceiver {
 
     function _sendMessage(
         uint16 recipientChain,
-        uint256 deliveryPayment,
+        uint256, // deliveryPayment
         address caller,
         bytes32 recipientNttManagerAddress,
-        bytes32 refundAddress,
-        TransceiverStructs.TransceiverInstruction memory transceiverInstruction,
+        bytes32, // refundAddress,
+        TransceiverStructs.TransceiverInstruction memory, // transceiverInstruction,
         bytes memory nttManagerMessage
     ) internal override {
-        revert("BoundlessTransceiver: Currently sending messages is not supported");
+        assert(block.chainid == 1); // Only Ethereum supported as the sending chain
+
+        (
+            ,
+            bytes memory encodedTransceiverPayload
+        ) = TransceiverStructs.buildAndEncodeTransceiverMessage(
+            BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX,
+            toWormholeFormat(caller),
+            recipientNttManagerAddress,
+            nttManagerMessage,
+            new bytes(0)
+        );
+
+        // This is the event that the relayer is listening for and will build a ZK
+        // proof of its inclusion in the source chain on the destination chain
+        emit SendTransceiverMessage(recipientChain, encodedTransceiverPayload);
     }
 
     function _quoteDeliveryPrice(
-        uint16 targetChain,
-        TransceiverStructs.TransceiverInstruction memory transceiverInstruction
-    ) internal view override returns (uint256) {
-        return 0; // Placeholder for delivery price logic
+        uint16, // targetChain,
+        TransceiverStructs.TransceiverInstruction memory // transceiverInstruction
+    ) internal pure override returns (uint256) {
+        return 0; // Relayer fees are not processed at this time
     }
 
     /// @notice Process a message along with its ZK proof of inclusion in the origin chain
-    /// @param encodedMessage The Wormhole encoded message containing the NTT Manager message.
     /// @param journalData The journal data that the proof commits to
     /// @param seal The opaque ZK proof seal that allows it to be verified on-chain
     /// @dev This function verifies the ZK proof, checks the commitments, then forwards the message to the NTT Manager.
     function receiveMessage(
-        bytes calldata encodedMessage, bytes calldata journalData, bytes calldata seal
+        bytes calldata journalData, bytes calldata seal
     ) external {
-        TransceiverStructs.NttManagerMessage memory message = TransceiverStructs.parseNttManagerMessage(encodedMessage);
         Journal memory journal = abi.decode(journalData, (Journal));
+
+        // parse the encoded Transceiver payload
+        TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage;
+        TransceiverStructs.NttManagerMessage memory parsedNttManagerMessage;
+        (parsedTransceiverMessage, parsedNttManagerMessage) = TransceiverStructs
+            .parseTransceiverAndNttManagerMessage(BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, journal.encodedMessage);
+
 
         // Validate the steel commitment against a trusted beacon block root from the BoundlessReceiver
         require(validateCommitment(journal.commitment), "Invalid commitment");
-
-        // Ensure the message digest matches the value committed to in the journal
-        bytes32 recoveredDigest = TransceiverStructs.nttManagerMessageDigest(sourceChainId, message);
-        require(recoveredDigest == journal.nttManagerMessageDigest, "Computed digest does not match the journal");
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
@@ -100,9 +126,9 @@ contract BoundlessTransceiver is Transceiver {
         // was included and then finalized by the chain. It can be passed to the NTT Manager.
         _deliverToNttManager(
             sourceChainId,
-            journal.emitterNttManager,
+            parsedTransceiverMessage.sourceNttManagerAddress,
             toWormholeFormat(nttManager),
-            message
+            parsedNttManagerMessage
         );
     }
 

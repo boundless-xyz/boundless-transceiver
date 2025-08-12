@@ -11,9 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#![no_main]
 
 use alloy_sol_types::SolValue;
-use common::{to_universal_address, GuestInput, INttManager, Journal};
+use common::{GuestInput, IBoundlessTransceiver, Journal};
 use risc0_steel::{ethereum::ETH_MAINNET_CHAIN_SPEC, Event};
 use risc0_zkvm::guest::env;
 
@@ -27,19 +28,19 @@ fn main() {
     // Converts the input into a `EvmEnv` for execution.
     let env = input.commitment.into_env(&ETH_MAINNET_CHAIN_SPEC);
 
-    // Query the `TransferSent` events of the contract and ensure it contains the expected message digest
-    let event = Event::new::<INttManager::TransferSent>(&env);
+    // Query the `SendTransceiverMessage` events of the contract and ensure it contains the expected message digest
+    let event = Event::new::<IBoundlessTransceiver::SendTransceiverMessage>(&env);
     let logs = &event.address(input.contract_addr).query();
     assert!(
-        logs.iter().any(|log| log.digest == input.msg_digest),
-        "Event for message with given digest could not be found",
+        logs.iter()
+            .any(|log| log.encodedMessage == input.encoded_message),
+        "Event for given message not contained in logs for this block",
     );
 
     // Commit to this message as being from the NTT manager contract in the block committed to by the env commitment
     let journal = Journal {
         commitment: env.into_commitment(),
-        nttManagerMessageDigest: input.msg_digest,
-        emitterNttManager: to_universal_address(input.contract_addr),
+        encodedMessage: input.encoded_message,
     };
     env::commit_slice(&journal.abi_encode());
 }

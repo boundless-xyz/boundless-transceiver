@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, Bytes, TxHash};
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use common::Journal;
@@ -70,25 +70,23 @@ struct Args {
     #[arg(long, env = "BEACON_API_URL")]
     beacon_api_url: Url,
 
-    /// Ethereum block to use as the state for the contract call
-    #[arg(long, env = "EXECUTION_BLOCK")]
-    execution_block: u64,
-
     /// Ethereum block to use for the beacon block commitment.
+    /// Can be any finalized block after the `execution_block`
+    /// Ideally is the *next* finalized block after the `execution_block`.
     #[arg(long, env = "COMMITMENT_BLOCK")]
     commitment_block: u64,
 
     /// Address of the NTT contract on the source chain
-    #[arg(long, env = "NTT_CONTRACT_ADDRESS")]
-    ntt_contract: Address,
+    #[arg(long, env = "SRC_TRANSCEIVER_ADDRESS")]
+    src_transceiver_addr: Address,
 
     /// Address of the Boundless Transceiver contract on the destination chain
-    #[arg(long, env = "NTT_CONTRACT_ADDRESS")]
-    transceiver_contract: Address,
+    #[arg(long, env = "DEST_TRANSCEIVER_ADDRESS")]
+    dst_transceiver_addr: Address,
 
-    /// Digest of the NTT message as emitted by the NTT Manager contract TransferSent event,
-    #[arg(long, env = "MSG_DIGEST")]
-    msg_digest: B256,
+    /// Transaction hash of the send transaction on the source chain
+    #[arg(long, env = "TX_HASH")]
+    tx_hash: TxHash,
 }
 
 #[tokio::main]
@@ -103,14 +101,13 @@ async fn main() -> Result<()> {
     let wallet = EthereumWallet::from(args.dest_wallet_private_key);
     let provider = ProviderBuilder::new()
         .wallet(wallet)
-        .connect_http(args.eth_rpc_url);
+        .connect_http(args.eth_rpc_url.clone());
 
     let prove_info = build_proof(
-        args.ntt_contract,
-        args.msg_digest,
+        args.tx_hash,
+        args.src_transceiver_addr,
         args.eth_rpc_url,
         args.beacon_api_url,
-        args.execution_block,
         args.commitment_block,
     )
     .await?;
@@ -125,23 +122,25 @@ async fn main() -> Result<()> {
     // ABI encode the seal.
     let seal = encode_seal(&receipt).context("invalid receipt")?;
 
-    // Create an alloy instance of the Counter contract.
-    let contract = IBoundlessTransceiver::new(args.transceiver_contract, &provider);
+    // Create an alloy instance of the BoundlessTransceiver contract.
+    let contract = IBoundlessTransceiver::new(args.dst_transceiver_addr, &provider);
 
-    // Call ICounter::imageID() to check that the contract has been deployed correctly.
+    // Call IBoundlessTransceiver::imageID() to check that the contract has been deployed correctly
+    // and ensure valid proofs will verify
     let contract_image_id = Digest::from(contract.imageID().call().await?.0);
     ensure!(
         contract_image_id == NTT_MESSAGE_INCLUSION_ID.into(),
         "Contract image ID does not match image ID being used to build proofs: {contract_image_id}, expected: {NTT_MESSAGE_INCLUSION_ID:?}",
     );
 
-    // Call the increment function of the contract and wait for confirmation.
+    // Call the receiveMessage function of the contract and wait for confirmation.
     log::info!(
         "Sending Tx calling {} Function of {:#}...",
         IBoundlessTransceiver::receiveMessageCall::SIGNATURE,
         contract.address()
     );
-    let call_builder = contract.receiveMessage(receipt.journal.bytes.into(), seal.into());
+    let call_builder =
+        contract.receiveMessage(receipt.journal.bytes.into(), seal.into(), Bytes::new());
 
     log::debug!("Send {} {}", contract.address(), call_builder.calldata());
     let pending_tx = call_builder.send().await?;

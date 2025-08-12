@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloy_primitives::{Address, B256};
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::rpc::types::TransactionReceipt;
+use alloy_primitives::{Address, TxHash};
+use alloy_sol_types::SolEvent;
 use anyhow::{Context, Result, ensure};
-use common::{GuestInput, INttManager};
+use common::{GuestInput, IBoundlessTransceiver};
 use risc0_steel::ethereum::ETH_MAINNET_CHAIN_SPEC;
 use risc0_steel::{
     Event, alloy::transports::http::reqwest::Url, ethereum::EthEvmEnv, host::BlockNumberOrTag,
@@ -24,16 +27,48 @@ use tokio::task;
 use zkvm::NTT_MESSAGE_INCLUSION_ELF;
 
 pub async fn build_input(
+    tx_hash: TxHash,
     contract_addr: Address,
-    msg_digest: B256,
     rpc_url: Url,
     beacon_api_url: Url,
-    execution_block: u64,
     commitment_block: u64,
 ) -> Result<Vec<u8>> {
+    let provider = ProviderBuilder::new().connect_http(rpc_url.clone());
+
+    // Get the transaction receipt
+    let receipt: TransactionReceipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .context("No transaction found with given tx_hash")?;
+
+    let execution_block = receipt
+        .block_number
+        .context("Tx was not included in a block")?;
     ensure!(
         commitment_block >= execution_block,
         "commitment block must be greater than or equal to execution block"
+    );
+
+    // Find the first matching event emitted by the contract in the transaction receipt
+    // NOTE(willem): This assumes that only a single NTT message is being sent in the transaction
+    // it is possible we might want to support handling multiple per tx in the future
+    let encoded_message = receipt
+        .logs()
+        .into_iter()
+        .find_map(|log| {
+            if log.address() == contract_addr {
+                IBoundlessTransceiver::SendTransceiverMessage::decode_log(&log.inner)
+                    .ok()
+                    .map(|event| event.encodedMessage.clone())
+            } else {
+                None
+            }
+        })
+        .context("No SendTransceiverMessage event found in transaction receipt")?;
+
+    ensure!(
+        !encoded_message.is_empty(),
+        "No encoded message found in SendTransceiverMessage event"
     );
 
     let builder = EthEvmEnv::builder()
@@ -44,27 +79,26 @@ pub async fn build_input(
 
     let mut env = builder.chain_spec(&ETH_MAINNET_CHAIN_SPEC).build().await?;
 
-    let event = Event::preflight::<INttManager::TransferSent>(&mut env);
+    let event = Event::preflight::<IBoundlessTransceiver::SendTransceiverMessage>(&mut env);
     let logs = event.address(contract_addr).query().await?;
     ensure!(
-        logs.iter().any(|log| { log.digest == msg_digest }),
-        "Log with digest {msg_digest} not found in contract {contract_addr}, block {execution_block}",
+        logs.iter()
+            .any(|log| { log.encodedMessage == encoded_message }),
+        "Log with digest {encoded_message} not found in contract {contract_addr}, block {execution_block}",
     );
 
     // Finally, construct the input from the environment.
-    // There are two options: Use EIP-4788 for verification by providing a Beacon API endpoint,
-    // or use the regular `blockhash' opcode.
     let evm_input = env.into_input().await?;
 
     let input = GuestInput {
         commitment: evm_input,
         contract_addr,
-        msg_digest,
+        encoded_message,
     };
 
     let input_bytes = bincode::serialize(&input).context("Failed to serialize GuestInput")?;
 
-    // Produce the env in by applying the length prefix as read_frame expects
+    // Produce the env_in by applying the length prefix as read_frame expects
     let mut guest_env_in = Vec::<u8>::new();
     guest_env_in.extend_from_slice(&input_bytes.len().to_le_bytes());
     guest_env_in.extend_from_slice(&input_bytes);
@@ -73,24 +107,22 @@ pub async fn build_input(
 }
 
 pub async fn build_proof(
+    tx_hash: TxHash,
     contract_addr: Address,
-    msg_digest: B256,
     rpc_url: Url,
     beacon_api_url: Url,
-    execution_block: u64,
     commitment_block: u64,
 ) -> Result<ProveInfo> {
     let env_input = build_input(
+        tx_hash,
         contract_addr,
-        msg_digest,
         rpc_url,
         beacon_api_url,
-        execution_block,
         commitment_block,
     )
     .await?;
 
-    // Create the steel proof.
+    // Create the RISC Zero proof
     let prove_info = task::spawn_blocking(move || {
         let env = ExecutorEnv::builder()
             .write_slice(&env_input)

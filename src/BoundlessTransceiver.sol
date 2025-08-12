@@ -6,7 +6,7 @@ import { TransceiverStructs } from "wormhole-ntt/libraries/TransceiverStructs.so
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { BoundlessReceiver } from "./BoundlessReceiver.sol";
 import { IRiscZeroVerifier } from "./interfaces/IRiscZeroVerifier.sol";
-import { Steel } from "@risc0/contracts/steel/Steel.sol";
+import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
 
 contract BoundlessTransceiver is Transceiver {
 
@@ -19,9 +19,10 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice The image ID of the Risc0 program used for event inclusion proofs.
     bytes32 public immutable imageID;
 
-    uint16 sourceChainId = 2; // Currently can only receive from Ethereum mainnet
+    /// @notice The Wormhole chain identifier of the source chain. Currently can only receive from Ethereum mainnet.
+    uint16 sourceChainId = 2;
 
-    /// @notice Journal that is committed to by the guest.
+    /// @notice Journal that is committed to by the guest ZKVM program.
     struct Journal {
         // Commitment locks this proof to a specific block root
         // which can be verified against the BoundlessReceiver contract
@@ -84,24 +85,73 @@ contract BoundlessTransceiver is Transceiver {
         TransceiverStructs.NttManagerMessage memory message = TransceiverStructs.parseNttManagerMessage(encodedMessage);
         Journal memory journal = abi.decode(journalData, (Journal));
 
+        // Validate the steel commitment against a trusted beacon block root from the BoundlessReceiver
+        require(validateCommitment(journal.commitment), "Invalid commitment");
+
         // Ensure the message digest matches the value committed to in the journal
         bytes32 recoveredDigest = TransceiverStructs.nttManagerMessageDigest(sourceChainId, message);
         require(recoveredDigest == journal.nttManagerMessageDigest, "Computed digest does not match the journal");
-
-        // TOOD: Validate the steel commitment against a trusted block root in the BoundlessReceiver
-        //       currently this will try to verify against the current chains block root which is not correct
-        require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
         verifier.verify(seal, imageID, journalHash);
 
+        // If all prior checks have passed we can trust the ZK proof of an event emitted on the source chain
+        // was included and then finalized by the chain. It can be passed to the NTT Manager.
         _deliverToNttManager(
             sourceChainId,
             journal.emitterNttManager,
             toWormholeFormat(nttManager),
             message
         );
+    }
+
+    /// @notice Validates a Steel commitment. Only supports v1 commitments which identify the beacon block root by its timestamp
+    /// @param commitment The commitment to validate
+    /// @return True if the commitment is valid
+    function validateCommitment(Steel.Commitment memory commitment)
+        internal
+        view
+        returns (bool)
+    {
+        (uint240 blockID, uint16 version) = SteelEncoding.decodeVersionedID(
+            commitment.id
+        );
+        if (version != 1) {
+            revert Steel.InvalidCommitmentVersion();
+        }
+
+        return validateReceiverCommitment(blockID, commitment.digest, boundlessReceiver.TWO_OF_TWO_FLAG());
+    }
+
+    /// @notice Validates commitment against the BoundlessReceiver contract
+    /// @param timestamp The timestamp indicating the beacon block root the commitment is associated with
+    /// @param parentRoot The expected parent beacon block root
+    /// @param confirmationLevel A flag indicating required level of confirmation the block root must meet
+    /// @return True if the commitment is valid
+    function validateReceiverCommitment(
+        uint256 timestamp,
+        bytes32 parentRoot,
+        uint16 confirmationLevel
+    ) internal view returns (bool) {
+        uint256 genesisTime = boundlessReceiver.GENESIS_BLOCK_TIMESTAMP();
+        require(timestamp >= genesisTime);
+
+        // Compute the slot corresponding to the commitment's timestamp
+        uint64 slot = SafeCast.toUint64((timestamp - genesisTime) / boundlessReceiver.SECONDS_PER_SLOT());
+
+        // Iterate backwards to locate the expected parent block
+        while (slot > 0) {
+            slot--;
+            (bytes32 headerRoot, bool valid) = boundlessReceiver.blockRoot(slot, confirmationLevel);
+            // Skip missed slots (empty roots)
+            if (headerRoot == boundlessReceiver.UNDEFINED_ROOT()) {
+                continue;
+            }
+            return valid && (headerRoot == parentRoot);
+        }
+
+        return false;
     }
 
 }

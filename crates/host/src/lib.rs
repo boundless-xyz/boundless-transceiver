@@ -1,0 +1,111 @@
+// Copyright 2025 Boundless, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use alloy_primitives::{Address, B256};
+use anyhow::{Context, Result, ensure};
+use common::{GuestInput, INttManager};
+use risc0_steel::ethereum::ETH_MAINNET_CHAIN_SPEC;
+use risc0_steel::{
+    Event, alloy::transports::http::reqwest::Url, ethereum::EthEvmEnv, host::BlockNumberOrTag,
+};
+use risc0_zkvm::{ExecutorEnv, ProveInfo, ProverOpts, VerifierContext, default_prover};
+use tokio::task;
+use zkvm::NTT_MESSAGE_INCLUSION_ELF;
+
+pub async fn build_input(
+    contract_addr: Address,
+    msg_digest: B256,
+    rpc_url: Url,
+    beacon_api_url: Url,
+    execution_block: u64,
+    commitment_block: u64,
+) -> Result<Vec<u8>> {
+    ensure!(
+        commitment_block >= execution_block,
+        "commitment block must be greater than or equal to execution block"
+    );
+
+    let builder = EthEvmEnv::builder()
+        .rpc(rpc_url)
+        .block_number_or_tag(BlockNumberOrTag::Number(execution_block))
+        .beacon_api(beacon_api_url)
+        .commitment_block_number_or_tag(BlockNumberOrTag::Number(commitment_block));
+
+    let mut env = builder.chain_spec(&ETH_MAINNET_CHAIN_SPEC).build().await?;
+
+    let event = Event::preflight::<INttManager::TransferSent>(&mut env);
+    let logs = event.address(contract_addr).query().await?;
+    ensure!(
+        logs.iter().any(|log| { log.digest == msg_digest }),
+        "Log with digest {msg_digest} not found in contract {contract_addr}, block {execution_block}",
+    );
+
+    // Finally, construct the input from the environment.
+    // There are two options: Use EIP-4788 for verification by providing a Beacon API endpoint,
+    // or use the regular `blockhash' opcode.
+    let evm_input = env.into_input().await?;
+
+    let input = GuestInput {
+        commitment: evm_input,
+        contract_addr,
+        msg_digest,
+    };
+
+    let input_bytes = bincode::serialize(&input).context("Failed to serialize GuestInput")?;
+
+    // Produce the env in by applying the length prefix as read_frame expects
+    let mut guest_env_in = Vec::<u8>::new();
+    guest_env_in.extend_from_slice(&input_bytes.len().to_le_bytes());
+    guest_env_in.extend_from_slice(&input_bytes);
+
+    Ok(guest_env_in)
+}
+
+pub async fn build_proof(
+    contract_addr: Address,
+    msg_digest: B256,
+    rpc_url: Url,
+    beacon_api_url: Url,
+    execution_block: u64,
+    commitment_block: u64,
+) -> Result<ProveInfo> {
+    let env_input = build_input(
+        contract_addr,
+        msg_digest,
+        rpc_url,
+        beacon_api_url,
+        execution_block,
+        commitment_block,
+    )
+    .await?;
+
+    // Create the steel proof.
+    let prove_info = task::spawn_blocking(move || {
+        let env = ExecutorEnv::builder()
+            .write_slice(&env_input)
+            .build()
+            .unwrap();
+
+        default_prover().prove_with_ctx(
+            env,
+            &VerifierContext::default(),
+            NTT_MESSAGE_INCLUSION_ELF,
+            &ProverOpts::groth16(),
+        )
+    })
+    .await?
+    .context("failed to create proof")?;
+
+    Ok(prove_info)
+}

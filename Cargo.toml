@@ -3,6 +3,7 @@ resolver = "2"
 members = [ "crates/common", "crates/host", "crates/zkvm"]
 
 [workspace.dependencies]
+alloy = { version = "1.0" }
 alloy-primitives = { version = "1.0" }
 alloy-sol-types = { version = "1.0" }
 

@@ -96,7 +96,7 @@ pub async fn build_input(
         encoded_message,
     };
 
-    let input_bytes = bincode::serialize(&input).context("Failed to serialize GuestInput")?;
+    let input_bytes = input.serialize().map_err(|e| anyhow::Error::msg(e))?;
 
     // Produce the env_in by applying the length prefix as read_frame expects
     let mut guest_env_in = Vec::<u8>::new();

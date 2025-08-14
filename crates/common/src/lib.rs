@@ -19,8 +19,18 @@ use risc0_steel::{Commitment, ethereum::EthEvmInput};
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct GuestInput {
     pub commitment: EthEvmInput,
-    pub contract_addr: Address,
     pub encoded_message: Bytes,
+    pub contract_addr: Address,
+}
+
+impl GuestInput {
+    pub fn serialize(&self) -> Result<Vec<u8>, String> {
+        bincode::serialize(self).map_err(|e| format!("Failed to serialize GuestInput: {}", e))
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<Self, String> {
+        bincode::deserialize(data).map_err(|e| format!("Failed to deserialize GuestInput: {}", e))
+    }
 }
 
 sol! {
@@ -43,5 +53,8 @@ sol! {
 
         // The encoded TransceiverMessage that this proof commits to
         bytes encodedMessage;
+
+        // The contract that emitted the message event
+        address emitterContract;
     }
 }

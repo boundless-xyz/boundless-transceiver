@@ -22,8 +22,7 @@ risc0_zkvm::guest::entry!(main);
 
 fn main() {
     let input_bytes: Vec<u8> = env::read_frame();
-    let input: GuestInput =
-        bincode::deserialize(&input_bytes).expect("Failed to deserialize input");
+    let input = GuestInput::deserialize(&input_bytes).expect("Failed to deserialize input");
 
     // Converts the input into a `EvmEnv` for execution.
     let env = input.commitment.into_env(&ETH_MAINNET_CHAIN_SPEC);
@@ -41,6 +40,7 @@ fn main() {
     let journal = Journal {
         commitment: env.into_commitment(),
         encodedMessage: input.encoded_message,
+        emitterContract: input.contract_addr,
     };
     env::commit_slice(&journal.abi_encode());
 }

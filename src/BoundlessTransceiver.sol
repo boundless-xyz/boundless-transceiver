@@ -21,6 +21,9 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice The BoundlessReceiver contract that will be used to verify the block roots.
     BoundlessReceiver public immutable boundlessReceiver;
 
+    /// @notice The BoundlessTransceiver contract deployed on Ethereum. Address(0) if this is Ethereum
+    address public immutable ethereumBoundlessTransceiver;
+
     /// @notice The image ID of the Risc0 program used for event inclusion proofs.
     bytes32 public immutable imageID;
 
@@ -35,6 +38,9 @@ contract BoundlessTransceiver is Transceiver {
 
         // The encoded TransceiverMessage that this proof commits to
         bytes encodedMessage;
+
+        // The contract that emitted the message event
+        address emitterContract;
     }
 
     /// @notice Emitted when a message is sent from this transceiver.
@@ -48,11 +54,13 @@ contract BoundlessTransceiver is Transceiver {
         address _manager,
         address _r0Verifier,
         address _blockRootReceiver,
-        bytes32 _imageID
+        bytes32 _imageID,
+        address _ethereumBoundlessTransceiver
     ) Transceiver(_manager) {
         verifier = IRiscZeroVerifier(_r0Verifier);
         boundlessReceiver = BoundlessReceiver(_blockRootReceiver);
         imageID = _imageID;
+        ethereumBoundlessTransceiver = _ethereumBoundlessTransceiver;
     }
 
     function getTransceiverType()
@@ -106,7 +114,15 @@ contract BoundlessTransceiver is Transceiver {
     function receiveMessage(
         bytes calldata journalData, bytes calldata seal
     ) external {
+        assert(block.chainid != 1); // Can only receive on non-Ethereum chains
+
         Journal memory journal = abi.decode(journalData, (Journal));
+
+        // Ensure the message came from the expected contract
+        require(
+            journal.emitterContract == ethereumBoundlessTransceiver,
+            "Invalid emitter contract"
+        );
 
         // parse the encoded Transceiver payload
         TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage;

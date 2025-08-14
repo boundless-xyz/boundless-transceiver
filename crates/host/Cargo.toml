@@ -19,7 +19,6 @@ risc0-ethereum-contracts = { workspace = true }
 risc0-zkvm = { workspace = true, features = ["std", "unstable", "client"] }
 
 anyhow = { workspace = true }
-bincode = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 

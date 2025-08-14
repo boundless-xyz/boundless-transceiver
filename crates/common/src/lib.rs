@@ -25,11 +25,11 @@ pub struct GuestInput {
 
 impl GuestInput {
     pub fn serialize(&self) -> Result<Vec<u8>, String> {
-        bincode::serialize(self).map_err(|e| format!("Failed to serialize GuestInput: {}", e))
+        bincode::serialize(self).map_err(|e| format!("Failed to serialize GuestInput: {e}"))
     }
 
     pub fn deserialize(data: &[u8]) -> Result<Self, String> {
-        bincode::deserialize(data).map_err(|e| format!("Failed to deserialize GuestInput: {}", e))
+        bincode::deserialize(data).map_err(|e| format!("Failed to deserialize GuestInput: {e}"))
     }
 }
 

@@ -54,7 +54,7 @@ pub async fn build_input(
     // it is possible we might want to support handling multiple per tx in the future
     let encoded_message = receipt
         .logs()
-        .into_iter()
+        .iter()
         .find_map(|log| {
             if log.address() == contract_addr {
                 IBoundlessTransceiver::SendTransceiverMessage::decode_log(&log.inner)
@@ -96,7 +96,7 @@ pub async fn build_input(
         encoded_message,
     };
 
-    let input_bytes = input.serialize().map_err(|e| anyhow::Error::msg(e))?;
+    let input_bytes = input.serialize().map_err(anyhow::Error::msg)?;
 
     // Produce the env_in by applying the length prefix as read_frame expects
     let mut guest_env_in = Vec::<u8>::new();

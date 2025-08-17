@@ -23,7 +23,6 @@ contract BoundlessReceiver is AccessControl {
     struct Journal {
         ConsensusState preState;
         ConsensusState postState;
-        uint64 finalizedSlot;
     }
 
     ConsensusState private currentState;
@@ -79,7 +78,7 @@ contract BoundlessReceiver is AccessControl {
         EMITTER_CHAIN_ID = emitterChainId;
     }
 
-    function transition(bytes calldata journalData, bytes calldata seal) external {
+    function transition(bytes calldata journalData, bytes calldata seal, uint64 finalizedSlot) external {
         Journal memory journal = abi.decode(journalData, (Journal));
         if (!_compareConsensusState(currentState, journal.preState)) {
             revert InvalidPreState();
@@ -91,7 +90,7 @@ contract BoundlessReceiver is AccessControl {
         bytes32 journalHash = sha256(journalData);
         IRiscZeroVerifier(VERIFIER).verify(seal, imageID, journalHash);
 
-        _transition(journal);
+        _transition(journal, finalizedSlot);
     }
 
     function receiveWormholeMessage(bytes calldata encodedVM) external {
@@ -111,9 +110,9 @@ contract BoundlessReceiver is AccessControl {
         _confirm(slot, root, WORMHOLE_FLAG);
     }
 
-    function manualTransition(bytes calldata journalData) external onlyRole(ADMIN_ROLE) {
+    function manualTransition(bytes calldata journalData, uint64 finalizedSlot) external onlyRole(ADMIN_ROLE) {
         Journal memory journal = abi.decode(journalData, (Journal));
-        _transition(journal);
+        _transition(journal, finalizedSlot);
     }
 
     /**
@@ -146,7 +145,7 @@ contract BoundlessReceiver is AccessControl {
         permissibleTimespan = newPermissibleTimespan;
     }
 
-    function _transition(Journal memory journal) internal {
+    function _transition(Journal memory journal, uint64 finalizedSlot) internal {
         currentState = journal.postState;
         emit Transitioned(
             journal.preState.finalizedCheckpoint.epoch,
@@ -156,7 +155,7 @@ contract BoundlessReceiver is AccessControl {
         );
 
         Checkpoint memory finalizedCheckpoint = journal.postState.finalizedCheckpoint;
-        _confirm(journal.finalizedSlot, finalizedCheckpoint.root, BOUNDLESS_FLAG);
+        _confirm(finalizedSlot, finalizedCheckpoint.root, BOUNDLESS_FLAG);
     }
 
     function _compareConsensusState(ConsensusState memory a, ConsensusState memory b) internal pure returns (bool) {

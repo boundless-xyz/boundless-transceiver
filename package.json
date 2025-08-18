@@ -10,7 +10,7 @@
 		"@openzeppelin/contracts": "^4.8.1",
 		"@risc0/ethereum": "github:risc0/risc0-ethereum#v2.2.0",
 		"wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0",
-    "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#v1.3.0%2Bcli"
+    "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#1f733fc6d8dab71ec11624ff6c03bacb0a83548a"
 	},
 	"devDependencies": {
 		"forge-std": "github:foundry-rs/forge-std#v1.9.7",

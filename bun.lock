@@ -6,7 +6,7 @@
       "dependencies": {
         "@openzeppelin/contracts": "^4.8.1",
         "@risc0/ethereum": "github:risc0/risc0-ethereum#v2.2.0",
-        "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#v1.3.0+cli",
+        "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#1f733fc6d8dab71ec11624ff6c03bacb0a83548a",
         "wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0",
       },
       "devDependencies": {
@@ -146,7 +146,7 @@
 
     "uri-js": ["uri-js@4.4.1", "", { "dependencies": { "punycode": "^2.1.0" } }, "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg=="],
 
-    "wormhole-ntt": ["ntt@git+ssh://github:wormhole-foundation/native-token-transfers#1f733fc6d8dab71ec11624ff6c03bacb0a83548a", {}, "1f733fc6d8dab71ec11624ff6c03bacb0a83548a"],
+    "wormhole-ntt": ["ntt@github:wormhole-foundation/native-token-transfers#1f733fc", {}, "wormhole-foundation-native-token-transfers-1f733fc"],
 
     "wormhole-sdk": ["wormhole-solidity-sdk@github:wormhole-foundation/wormhole-solidity-sdk#b9e129e", {}, "wormhole-foundation-wormhole-solidity-sdk-b9e129e"],
 

@@ -22,6 +22,7 @@ env:
   RUST_BACKTRACE: "1"
   RISC0_RUST_TOOLCHAIN_VERSION: 1.88.0
   RISC0_VERSION: 2.3.1
+  FOUNDRY_VERSION: v1.0.0
 
 jobs:
   test:
@@ -62,7 +63,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: '1.0.0'  # Older version to ensure compatibility with glibc in our runner
+          version: ${{ env.FOUNDRY_VERSION }}
 
       - name: run tests
         env:

@@ -59,8 +59,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Install Foundry"
-        uses: "foundry-rs/foundry-toolchain@v1"
+      # Building from src to link against the libc version we have installed in the runner
+      - name: Build Foundry from source
+        run: |
+          git clone https://github.com/foundry-rs/foundry
+          cd foundry
+          cargo build --release --bin anvil
+          echo "$(pwd)/target/release" >> $GITHUB_PATH
 
       - name: run tests
         env:

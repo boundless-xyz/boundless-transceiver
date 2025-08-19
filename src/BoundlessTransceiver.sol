@@ -11,8 +11,10 @@ import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.s
 contract BoundlessTransceiver is Transceiver {
 
     /// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
-    /// @notice Magic string (constant value set by messaging provider) that idenfies the payload as an transceiver-emitted payload.
-    ///         Note that this is not a security critical field and is used for convenience to identify the payload type.
+    /// @notice Magic string (constant value set by messaging provider) that identifies the payload as an
+    /// transceiver-emitted payload.
+    ///         Note that this is not a security critical field and is used for convenience to identify the payload
+    /// type.
     bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
 
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
@@ -46,9 +48,7 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Emitted when a message is sent from this transceiver.
     /// @param recipientChain The chain ID of the recipient.
     /// @param encodedMessage The encoded TransceiverMessage.
-    event SendTransceiverMessage(
-        uint16 recipientChain, bytes encodedMessage
-    );
+    event SendTransceiverMessage(uint16 indexed recipientChain, bytes encodedMessage);
 
     constructor(
         address _manager,

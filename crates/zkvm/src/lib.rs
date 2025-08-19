@@ -14,6 +14,8 @@ mod tests {
     };
     use risc0_zkvm::{default_executor, ExecutorEnv};
     use std::sync::LazyLock;
+
+    // A minimal contract that emits a `SendTransceiverMessage` events when `emitEvent` is called.
     sol! {
     #[sol(rpc, bytecode="6080604052348015600e575f5ffd5b5061016c8061001c5f395ff3fe608060405234801561000f575f5ffd5b5060043610610029575f3560e01c80631e08b77e1461002d575b5f5ffd5b61004061003b366004610082565b610042565b005b7f0d4a24add37c1972207e3dcfa8359764948caf868db363ee8fa1cb7f55f0a74c83838360405161007593929190610108565b60405180910390a1505050565b5f5f5f60408486031215610094575f5ffd5b833561ffff811681146100a5575f5ffd5b9250602084013567ffffffffffffffff8111156100c0575f5ffd5b8401601f810186136100d0575f5ffd5b803567ffffffffffffffff8111156100e6575f5ffd5b8660208284010111156100f7575f5ffd5b939660209190910195509293505050565b61ffff8416815260406020820152816040820152818360608301375f818301606090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01601019291505056fea164736f6c634300081e000a")]
     contract SendTransceiverMessageEmitter {
@@ -104,6 +106,8 @@ mod tests {
 
             match result {
                 Ok(info) => {
+                    println!("Executed {} R0vm cycles", info.cycles());
+
                     if let Some(expected) = expected {
                         panic!("Test case {i}: Expected error: {expected}, but got success");
                     }

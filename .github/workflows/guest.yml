@@ -1,4 +1,4 @@
-name: test guest
+name: "Guest"
 
 on:
   push:
@@ -58,6 +58,9 @@ jobs:
           toolchain-version: ${{ env.RISC0_RUST_TOOLCHAIN_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Install Foundry"
+        uses: "foundry-rs/foundry-toolchain@v1"
 
       - name: run tests
         env:

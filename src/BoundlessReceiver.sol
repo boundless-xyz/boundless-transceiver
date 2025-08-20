@@ -86,7 +86,7 @@ contract BoundlessReceiver is AccessControl {
         if (!_compareConsensusState(currentState, journal.preState)) {
             revert InvalidPreState();
         }
-        if (!_permissibleTransition(journal.preState, journal.postState)) {
+        if (!_permissibleTransition(journal.preState)) {
             revert PermissibleTimespanLapsed();
         }
 
@@ -173,16 +173,13 @@ contract BoundlessReceiver is AccessControl {
         return a.epoch == b.epoch && a.root == b.root;
     }
 
-    function _permissibleTransition(
-        ConsensusState memory pre,
-        ConsensusState memory post
-    )
-        internal
-        view
-        returns (bool)
-    {
+    /// @notice Check if a transition is within the permissible timespan
+    /// @dev Ensures that the transition is not too old based on the permissibleTimespan setting
+    /// @param state The consensus state to check
+    /// @return Whether the transition is within the permissible timespan
+    function _permissibleTransition(ConsensusState memory state) internal view returns (bool) {
         uint256 transitionTimespan = block.timestamp
-            - Beacon.epochTimestamp(Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, post.finalizedCheckpoint.epoch);
+            - Beacon.epochTimestamp(Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, state.finalizedCheckpoint.epoch);
         return transitionTimespan <= uint256(permissibleTimespan);
     }
 

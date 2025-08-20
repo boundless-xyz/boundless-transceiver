@@ -49,6 +49,8 @@ contract BoundlessReceiver is AccessControl {
         uint64 indexed preEpoch, uint64 indexed postEpoch, ConsensusState preState, ConsensusState postState
     );
     event Confirmed(uint64 indexed slot, bytes32 indexed root, uint16 indexed confirmationLevel);
+    event ImageIDUpdated(bytes32 indexed newImageID, bytes32 indexed oldImageID);
+    event PermissibleTimespanUpdated(uint24 indexed permissibleTimespan);
 
     error InvalidArgument();
     error InvalidPreState();
@@ -130,12 +132,14 @@ contract BoundlessReceiver is AccessControl {
         if (root == UNDEFINED_ROOT) {
             valid = false;
         }
-        CheckpointAttestation storage attestation = attestations[_checkpointHash(slot, root)];
+        CheckpointAttestation memory attestation = attestations[_checkpointHash(slot, root)];
         valid = _sufficientConfirmations(attestation.confirmations, confirmationLevel);
     }
 
     function updateImageID(bytes32 newImageID) external onlyRole(ADMIN_ROLE) {
         if (newImageID == imageID) revert InvalidArgument();
+
+        emit ImageIDUpdated(newImageID, imageID);
         imageID = newImageID;
     }
 
@@ -144,6 +148,7 @@ contract BoundlessReceiver is AccessControl {
             revert InvalidArgument();
         }
         permissibleTimespan = newPermissibleTimespan;
+        emit PermissibleTimespanUpdated(newPermissibleTimespan);
     }
 
     function _transition(Journal memory journal) internal {
@@ -202,6 +207,6 @@ contract BoundlessReceiver is AccessControl {
 
     function _sufficientConfirmations(uint16 confirmations, uint16 targetLevel) internal pure returns (bool) {
         uint16 remainder = confirmations & targetLevel;
-        return remainder >= targetLevel;
+        return remainder == targetLevel;
     }
 }

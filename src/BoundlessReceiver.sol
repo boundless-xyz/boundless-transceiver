@@ -14,7 +14,7 @@ contract BoundlessReceiver is AccessControl {
 
     uint16 public constant BOUNDLESS_FLAG = 0;
     uint16 public constant WORMHOLE_FLAG = 1;
-    uint16 public constant TWO_OF_TWO_FLAG = BOUNDLESS_FLAG | WORMHOLE_FLAG;
+    uint16 public constant TWO_OF_TWO_FLAG = uint16((1 << BOUNDLESS_FLAG) | (1 << WORMHOLE_FLAG));
 
     struct CheckpointAttestation {
         uint16 confirmations;

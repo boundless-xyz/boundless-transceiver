@@ -14,7 +14,7 @@ contract BeaconEmitterTest is Test {
     uint256 constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
     uint64 constant SLOTS_PER_EPOCH = 32;
     uint256 constant SLOT_DURATION = 12;
-    uint256 constant GENESIS_TIMESTAMP = 1_606_824_000;
+    uint256 constant GENESIS_TIMESTAMP = Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP;
     uint64 constant BASE_SLOT = 1000;
     uint256 constant BASE_TIMESTAMP = GENESIS_TIMESTAMP + (BASE_SLOT * SLOT_DURATION);
     uint64 constant CHILD_SLOT = BASE_SLOT + 1;

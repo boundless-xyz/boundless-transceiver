@@ -16,7 +16,9 @@ import { Beacon } from "./lib/Beacon.sol";
  *
  */
 contract BeaconEmitter {
-    uint8 constant CONSISTENCY_LEVEL = 0; // Block containing message must be finalized
+    /// @notice Wormhole consistency level for message finality.
+    /// @dev Level 0 requires the block containing the message to be finalized.
+    uint8 immutable CONSISTENCY_LEVEL = 0;
 
     IWormhole public immutable WORMHOLE;
     uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
@@ -30,6 +32,7 @@ contract BeaconEmitter {
     constructor(address wormhole, uint256 genesisBlockTimestamp) {
         WORMHOLE = IWormhole(wormhole);
         GENESIS_BLOCK_TIMESTAMP = genesisBlockTimestamp;
+        CONSISTENCY_LEVEL = consistencyLevel;
     }
 
     function emitForSlot(uint64 slot) external payable {

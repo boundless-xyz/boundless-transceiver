@@ -29,7 +29,7 @@ contract BeaconEmitterTest is Test {
 
     function setUp() public {
         wormholeMock = new WormholeMock();
-        beaconEmitter = new BeaconEmitter(address(wormholeMock), GENESIS_TIMESTAMP);
+        beaconEmitter = new BeaconEmitter(address(wormholeMock), GENESIS_TIMESTAMP, 0);
 
         // Set the current timestamp to ~100 slots post base slot
         uint256 currentTimestamp = BASE_TIMESTAMP + (100 * SLOT_DURATION);
@@ -70,13 +70,13 @@ contract BeaconEmitterTest is Test {
     function test_GenesisBlockTimestamp_Validation() public {
         // Test with different genesis timestamps
         uint256 customGenesis = 1_606_824_000 + 86_400; // One day later
-        BeaconEmitter customEmitter = new BeaconEmitter(address(wormholeMock), customGenesis);
+        BeaconEmitter customEmitter = new BeaconEmitter(address(wormholeMock), customGenesis, 0);
 
         assertEq(customEmitter.GENESIS_BLOCK_TIMESTAMP(), customGenesis);
 
         // Test with current timestamp (should be valid)
         uint256 currentGenesis = block.timestamp - 1_000_000;
-        BeaconEmitter currentEmitter = new BeaconEmitter(address(wormholeMock), currentGenesis);
+        BeaconEmitter currentEmitter = new BeaconEmitter(address(wormholeMock), currentGenesis, 0);
         assertEq(currentEmitter.GENESIS_BLOCK_TIMESTAMP(), currentGenesis);
     }
 

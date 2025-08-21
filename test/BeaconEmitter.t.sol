@@ -11,17 +11,21 @@ contract BeaconEmitterTest is Test {
     WormholeMock public wormholeMock;
 
     // Ethereum mainnet genesis timestamp
-    uint256 constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
-    uint64 constant SLOTS_PER_EPOCH = 32;
-    uint256 constant SLOT_DURATION = 12;
-    uint256 constant GENESIS_TIMESTAMP = Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP;
-    uint64 constant BASE_SLOT = 1000;
-    uint256 constant BASE_TIMESTAMP = GENESIS_TIMESTAMP + (BASE_SLOT * SLOT_DURATION);
-    uint64 constant CHILD_SLOT = BASE_SLOT + 1;
-    uint256 constant CHILD_TIMESTAMP = GENESIS_TIMESTAMP + (CHILD_SLOT * SLOT_DURATION);
+    Beacon.BeaconConfig beaconConfig = Beacon.ETHEREUM_MAINNET_BEACON_CONFIG();
+    uint256 BEACON_ROOTS_HISTORY_BUFFER_LENGTH = beaconConfig.beaconRootsHistoryBufferLength;
+    uint64 SLOTS_PER_EPOCH = uint64(beaconConfig.slotsPerEpoch);
+    uint64 SLOT_SPEED = uint64(beaconConfig.slotSpeed);
+    uint256 GENESIS_TIMESTAMP = beaconConfig.genesisBeaconBlockTimestamp;
+
+    uint64 BASE_SLOT = 1000;
+    uint256 BASE_TIMESTAMP = GENESIS_TIMESTAMP + (BASE_SLOT * SLOT_SPEED);
+
+    uint64 CHILD_SLOT = BASE_SLOT + 1;
+    uint256 CHILD_TIMESTAMP = GENESIS_TIMESTAMP + (CHILD_SLOT * SLOT_SPEED);
+
     bytes32 constant BASE_ROOT = keccak256("BASE ROOT");
 
-    address constant BEACON_ROOTS_ADDRESS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
+    address BEACON_ROOTS_ADDRESS = beaconConfig.beaconRootsAddress;
 
     bytes32 blockRoot;
 
@@ -29,18 +33,19 @@ contract BeaconEmitterTest is Test {
 
     function setUp() public {
         wormholeMock = new WormholeMock();
-        beaconEmitter = new BeaconEmitter(address(wormholeMock), GENESIS_TIMESTAMP, 0);
+        beaconEmitter = new BeaconEmitter(address(wormholeMock), 0, beaconConfig);
 
         // Set the current timestamp to ~100 slots post base slot
-        uint256 currentTimestamp = BASE_TIMESTAMP + (100 * SLOT_DURATION);
+        uint256 currentTimestamp = BASE_TIMESTAMP + (100 * SLOT_SPEED);
         vm.warp(currentTimestamp);
         _mockBeacon(CHILD_TIMESTAMP, BASE_ROOT);
-        blockRoot = Beacon.findBlockRoot(GENESIS_TIMESTAMP, BASE_SLOT);
+        blockRoot = Beacon.findBlockRoot(BASE_SLOT, beaconConfig);
     }
 
     function test_ConstructorInitialization() public view {
+        Beacon.BeaconConfig memory config = beaconEmitter.BEACON_CONFIG();
         assertEq(address(beaconEmitter.WORMHOLE()), address(wormholeMock));
-        assertEq(beaconEmitter.GENESIS_BLOCK_TIMESTAMP(), GENESIS_TIMESTAMP);
+        assertEq(config.genesisBeaconBlockTimestamp, GENESIS_TIMESTAMP);
     }
 
     function test_EmitForSlot_Success() public {
@@ -69,15 +74,29 @@ contract BeaconEmitterTest is Test {
 
     function test_GenesisBlockTimestamp_Validation() public {
         // Test with different genesis timestamps
-        uint256 customGenesis = 1_606_824_000 + 86_400; // One day later
-        BeaconEmitter customEmitter = new BeaconEmitter(address(wormholeMock), customGenesis, 0);
+        uint64 customGenesis = 1_606_824_000 + 86_400; // One day later
+        Beacon.BeaconConfig memory conf = Beacon.BeaconConfig({
+            genesisBeaconBlockTimestamp: customGenesis,
+            beaconRootsHistoryBufferLength: 8191,
+            slotSpeed: 12,
+            slotsPerEpoch: 32,
+            beaconRootsAddress: 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02
+        });
+        BeaconEmitter customEmitter = new BeaconEmitter(address(wormholeMock), 0, conf);
 
-        assertEq(customEmitter.GENESIS_BLOCK_TIMESTAMP(), customGenesis);
+        assertEq(customEmitter.BEACON_CONFIG().genesisBeaconBlockTimestamp, customGenesis);
 
         // Test with current timestamp (should be valid)
-        uint256 currentGenesis = block.timestamp - 1_000_000;
-        BeaconEmitter currentEmitter = new BeaconEmitter(address(wormholeMock), currentGenesis, 0);
-        assertEq(currentEmitter.GENESIS_BLOCK_TIMESTAMP(), currentGenesis);
+        uint64 currentGenesis = uint64(block.timestamp) - 1_000_000;
+        Beacon.BeaconConfig memory conf_ = Beacon.BeaconConfig({
+            genesisBeaconBlockTimestamp: currentGenesis,
+            beaconRootsHistoryBufferLength: 8191,
+            slotSpeed: 12,
+            slotsPerEpoch: 32,
+            beaconRootsAddress: 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02
+        });
+        BeaconEmitter currentEmitter = new BeaconEmitter(address(wormholeMock), 0, conf_);
+        assertEq(currentEmitter.BEACON_CONFIG().genesisBeaconBlockTimestamp, currentGenesis);
     }
 
     function test_EpochToSlot_Calculation() public {
@@ -85,7 +104,7 @@ contract BeaconEmitterTest is Test {
         uint256 expectedSlot = epoch * SLOTS_PER_EPOCH;
 
         // This is implicitly tested through emitForEpoch, but let's verify the calculation
-        uint256 expectedTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_DURATION);
+        uint256 expectedTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_SPEED);
 
         assertEq(expectedSlot, 1234 * 32);
         assertEq(expectedTimestamp, GENESIS_TIMESTAMP + (1234 * 32 + 1) * 12);
@@ -93,7 +112,7 @@ contract BeaconEmitterTest is Test {
 
     function test_EmitForSlot_TimestampOutOfRange() public {
         // Warp to current time
-        vm.warp(BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SLOT_DURATION + GENESIS_TIMESTAMP + 1200);
+        vm.warp(BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SLOT_SPEED + GENESIS_TIMESTAMP + 1200);
 
         uint64 oldSlot = uint64(1);
 
@@ -107,16 +126,16 @@ contract BeaconEmitterTest is Test {
 
     function test_EmitForSlot_NoBlockRootFound() public {
         // Warp to a reasonable time
-        uint256 currentTimestamp = GENESIS_TIMESTAMP + (50_000 * SLOT_DURATION);
+        uint256 currentTimestamp = GENESIS_TIMESTAMP + (50_000 * SLOT_SPEED);
         vm.warp(currentTimestamp);
 
         uint64 epoch = 1500;
         uint64 expectedSlot = epoch * SLOTS_PER_EPOCH;
-        uint256 expectedTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_DURATION);
+        uint256 expectedTimestamp = GENESIS_TIMESTAMP + ((expectedSlot + 1) * SLOT_SPEED);
 
         // Mock all calls to return empty (no block root found)
         for (uint256 i = 0; i < 100; i++) {
-            uint256 timestamp = expectedTimestamp + (i * SLOT_DURATION);
+            uint256 timestamp = expectedTimestamp + (i * SLOT_SPEED);
             vm.mockCall(
                 BEACON_ROOTS_ADDRESS,
                 abi.encodeWithSelector(bytes4(keccak256("get(bytes32)")), bytes32(timestamp)),
@@ -143,7 +162,7 @@ contract BeaconEmitterTest is Test {
     }
 
     function test_BeaconLibrary_Direct() public {
-        bytes32 result = Beacon.findBlockRoot(GENESIS_TIMESTAMP, BASE_SLOT);
+        bytes32 result = Beacon.findBlockRoot(BASE_SLOT, beaconConfig);
         assertEq(result, BASE_ROOT);
     }
 

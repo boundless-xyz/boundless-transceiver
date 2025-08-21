@@ -14,7 +14,7 @@ contract DeployEmitter is BaseScript {
         uint8 consistencyLevel = uint8(vm.envOr("CONSISTENCY_LEVEL", uint256(0)));
 
         vm.startBroadcast(deployerPk);
-        BeaconEmitter be = new BeaconEmitter(wormhole, Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, consistencyLevel);
+        BeaconEmitter be = new BeaconEmitter(wormhole, consistencyLevel, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG());
         vm.stopBroadcast();
 
         console.log("BeaconEmitter: ", address(be));

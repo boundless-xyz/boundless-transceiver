@@ -50,7 +50,8 @@ contract RiscZeroTransceiverTest is Test {
             beaconEmitter,
             emitterChainId,
             admin,
-            admin
+            admin,
+            Beacon.ETHEREUM_MAINNET_BEACON_CONFIG()
         );
     }
 
@@ -207,9 +208,8 @@ contract RiscZeroTransceiverTest is Test {
         RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal)));
 
         vm.warp(
-            Beacon.epochTimestamp(
-                Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, journal.postState.finalizedCheckpoint.epoch
-            ) + permissibleTimespan
+            Beacon.epochTimestamp(journal.preState.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG())
+                + permissibleTimespan
         );
         vm.startPrank(admin);
         br.transition(abi.encode(journal), receipt.seal);
@@ -255,9 +255,8 @@ contract RiscZeroTransceiverTest is Test {
         RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal_)));
 
         vm.warp(
-            Beacon.epochTimestamp(
-                Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, journal_.postState.finalizedCheckpoint.epoch
-            ) + permissibleTimespan + 1
+            Beacon.epochTimestamp(journal_.preState.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG())
+                + permissibleTimespan + 1
         );
 
         vm.expectRevert(BoundlessReceiver.PermissibleTimespanLapsed.selector);
@@ -349,9 +348,8 @@ contract RiscZeroTransceiverTest is Test {
         RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal)));
 
         vm.warp(
-            Beacon.epochTimestamp(
-                Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, journal.postState.finalizedCheckpoint.epoch
-            ) + permissibleTimespan
+            Beacon.epochTimestamp(journal.preState.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG())
+                + permissibleTimespan
         );
 
         vm.expectEmit(true, true, true, true);
@@ -392,9 +390,8 @@ contract RiscZeroTransceiverTest is Test {
         RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal)));
 
         vm.warp(
-            Beacon.epochTimestamp(
-                Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, journal.postState.finalizedCheckpoint.epoch
-            ) + permissibleTimespan
+            Beacon.epochTimestamp(journal.preState.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG())
+                + permissibleTimespan
         );
 
         vm.expectEmit(true, true, true, true);
@@ -459,9 +456,8 @@ contract RiscZeroTransceiverTest is Test {
         RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal)));
 
         vm.warp(
-            Beacon.epochTimestamp(
-                Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, journal.postState.finalizedCheckpoint.epoch
-            ) + permissibleTimespan
+            Beacon.epochTimestamp(journal.preState.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG())
+                + permissibleTimespan
         );
 
         vm.prank(admin);

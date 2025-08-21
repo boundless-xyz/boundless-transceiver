@@ -5,6 +5,7 @@ import { BaseScript } from "./Base.s.sol";
 import { BoundlessReceiver } from "../src/BoundlessReceiver.sol";
 import { ConsensusState, Checkpoint } from "../src/tseth.sol";
 import { console } from "forge-std/console.sol";
+import { Beacon } from "../src/lib/Beacon.sol";
 
 contract DeployReceiver is BaseScript {
     function run() public returns (address) {
@@ -38,7 +39,8 @@ contract DeployReceiver is BaseScript {
             beaconEmitter,
             emitterChainId,
             admin,
-            superAdmin
+            superAdmin,
+            Beacon.ETHEREUM_MAINNET_BEACON_CONFIG()
         );
         vm.stopBroadcast();
 

@@ -58,6 +58,19 @@ contract BoundlessReceiver is AccessControl {
     error UnauthorizedEmitterChainId();
     error UnauthorizedEmitterAddress();
 
+    /// @notice Initializes the BoundlessReceiver contract with all required parameters
+    /// @dev Sets up the initial consensus state, configures verification parameters, and establishes cross-chain
+    /// communication
+    /// @param startingState The initial consensus state of the beacon chain
+    /// @param permissibleTimespan_ Maximum allowed time span for state transitions in seconds
+    /// @param verifier Address of the RISC Zero verifier contract for proof validation
+    /// @param imageID_ The RISC Zero image ID for the beacon state transition program
+    /// @param wormhole Address of the Wormhole core contract for cross-chain messaging
+    /// @param beaconEmitter Address of the authorized BeaconEmitter contract
+    /// @param emitterChainId Chain ID where the BeaconEmitter is deployed
+    /// @param admin Address to be granted the ADMIN_ROLE
+    /// @param superAdmin Address to be granted the DEFAULT_ADMIN_ROLE
+    /// @param beaconConfig BeaconConfig for the chain of choice
     constructor(
         ConsensusState memory startingState,
         uint24 permissibleTimespan_,
@@ -67,7 +80,8 @@ contract BoundlessReceiver is AccessControl {
         address beaconEmitter,
         uint16 emitterChainId,
         address admin,
-        address superAdmin
+        address superAdmin,
+        Beacon.BeaconConfig memory beaconConfig
     ) {
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(DEFAULT_ADMIN_ROLE, superAdmin);
@@ -79,6 +93,7 @@ contract BoundlessReceiver is AccessControl {
         WORMHOLE = IWormhole(wormhole);
         BEACON_EMITTER = toWormholeFormat(beaconEmitter);
         EMITTER_CHAIN_ID = emitterChainId;
+        BEACON_CONFIG = beaconConfig;
     }
 
     function transition(bytes calldata journalData, bytes calldata seal) external {
@@ -178,8 +193,8 @@ contract BoundlessReceiver is AccessControl {
     /// @param state The consensus state to check
     /// @return Whether the transition is within the permissible timespan
     function _permissibleTransition(ConsensusState memory state) internal view returns (bool) {
-        uint256 transitionTimespan = block.timestamp
-            - Beacon.epochTimestamp(Beacon.ETHEREUM_GENESIS_BEACON_BLOCK_TIMESTAMP, state.finalizedCheckpoint.epoch);
+        uint256 transitionTimespan =
+            block.timestamp - Beacon.epochTimestamp(state.finalizedCheckpoint.epoch, BEACON_CONFIG);
         return transitionTimespan <= uint256(permissibleTimespan);
     }
 

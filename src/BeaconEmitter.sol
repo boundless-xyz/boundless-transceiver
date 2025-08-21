@@ -21,23 +21,26 @@ contract BeaconEmitter {
     uint8 immutable CONSISTENCY_LEVEL = 0;
 
     IWormhole public immutable WORMHOLE;
-    uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
 
-    /**
-     * @notice Creates a new BeaconEmitter contract.
-     * @param wormhole The address of the Wormhole core contract.
-     * @param genesisBlockTimestamp The timestamp of the genesis beacon block of the chain this contract is deployed
-     * on. 1606824000 for Ethereum mainnet.
-     */
-    constructor(address wormhole, uint256 genesisBlockTimestamp) {
+    Beacon.BeaconConfig private _BEACON_CONFIG;
+
+    /// @notice Creates a new BeaconEmitter contract instance.
+    /// @dev Initializes the contract with Wormhole integration and genesis timestamp configuration.
+    /// @param wormhole The address of the Wormhole core contract for cross-chain messaging.
+    /// @param consistencyLevel The Wormhole consistency level for message finality.
+    constructor(address wormhole, uint8 consistencyLevel, Beacon.BeaconConfig memory beaconConfig) {
         WORMHOLE = IWormhole(wormhole);
-        GENESIS_BLOCK_TIMESTAMP = genesisBlockTimestamp;
         CONSISTENCY_LEVEL = consistencyLevel;
+        _BEACON_CONFIG = beaconConfig;
     }
 
     function emitForSlot(uint64 slot) external payable {
-        bytes32 blockRoot = Beacon.findBlockRoot(GENESIS_BLOCK_TIMESTAMP, slot);
+        bytes32 blockRoot = Beacon.findBlockRoot(slot, _BEACON_CONFIG);
 
         WORMHOLE.publishMessage{ value: msg.value }(0, abi.encode(slot, blockRoot), CONSISTENCY_LEVEL);
+    }
+
+    function BEACON_CONFIG() external view returns (Beacon.BeaconConfig memory) {
+        return _BEACON_CONFIG;
     }
 }

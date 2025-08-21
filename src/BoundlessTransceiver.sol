@@ -4,19 +4,14 @@ pragma solidity ^0.8.30;
 import { Transceiver } from "wormhole-ntt/Transceiver/Transceiver.sol";
 import { TransceiverStructs } from "wormhole-ntt/libraries/TransceiverStructs.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
-import { BoundlessReceiver } from "./BoundlessReceiver.sol";
+import { BoundlessReceiver, TWO_OF_TWO_FLAG } from "./BoundlessReceiver.sol";
 import { IRiscZeroVerifier } from "./interfaces/IRiscZeroVerifier.sol";
 import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
 
+/// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
+bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
+
 contract BoundlessTransceiver is Transceiver {
-
-    /// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
-    /// @notice Magic string (constant value set by messaging provider) that identifies the payload as an
-    /// transceiver-emitted payload.
-    ///         Note that this is not a security critical field and is used for convenience to identify the payload
-    /// type.
-    bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
-
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public immutable verifier;
 
@@ -50,6 +45,12 @@ contract BoundlessTransceiver is Transceiver {
     /// @param encodedMessage The encoded TransceiverMessage.
     event SendTransceiverMessage(uint16 indexed recipientChain, bytes encodedMessage);
 
+    /// @notice Constructs a new BoundlessTransceiver.
+    /// @param _manager The address of the NTT Manager contract
+    /// @param _r0Verifier The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
+    /// @param _blockRootReceiver The address of the BoundlessReceiver contract on this chain
+    /// @param _imageID The image ID of the Risc0 program used for event inclusion proofs
+    /// @param _ethereumBoundlessTransceiver The address of the corresponding BoundlessTransceiver contract on Ethereum (sending side)
     constructor(
         address _manager,
         address _r0Verifier,
@@ -81,8 +82,11 @@ contract BoundlessTransceiver is Transceiver {
         bytes32, // refundAddress,
         TransceiverStructs.TransceiverInstruction memory, // transceiverInstruction,
         bytes memory nttManagerMessage
-    ) internal override {
-        assert(block.chainid == 1); // Only Ethereum supported as the sending chain
+    )
+        internal
+        override
+    {
+        require(block.chainid == 1, "Only Ethereum supported as sender");
 
         (
             ,
@@ -111,10 +115,8 @@ contract BoundlessTransceiver is Transceiver {
     /// @param journalData The journal data that the proof commits to
     /// @param seal The opaque ZK proof seal that allows it to be verified on-chain
     /// @dev This function verifies the ZK proof, checks the commitments, then forwards the message to the NTT Manager.
-    function receiveMessage(
-        bytes calldata journalData, bytes calldata seal
-    ) external {
-        assert(block.chainid != 1); // Can only receive on non-Ethereum chains
+    function receiveMessage(bytes calldata journalData, bytes calldata seal) external {
+        require(block.chainid != 1, "Ethereum not supported as sender"); // Can only receive on non-Ethereum chains
 
         Journal memory journal = abi.decode(journalData, (Journal));
 
@@ -132,7 +134,10 @@ contract BoundlessTransceiver is Transceiver {
 
 
         // Validate the steel commitment against a trusted beacon block root from the BoundlessReceiver
-        require(validateCommitment(journal.commitment), "Invalid commitment");
+        require(
+            boundlessReceiver.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG),
+            "Invalid commitment"
+        );
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);

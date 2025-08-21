@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import { IRiscZeroVerifier, Receipt as RiscZeroReceipt } from "@risc0/contracts/IRiscZeroVerifier.sol";
 import { RiscZeroMockVerifier } from "@risc0/contracts/test/RiscZeroMockVerifier.sol";
 import { ConsensusState, Checkpoint } from "../src/tseth.sol";
-import { BoundlessReceiver } from "../src/BoundlessReceiver.sol";
+import { BlockRootOracle } from "../src/BlockRootOracle.sol";
 import { WormholeMock } from "./mocks/WormholeMock.sol";
 import { Beacon } from "../src/lib/Beacon.sol";
 
@@ -14,14 +14,14 @@ import { console2 } from "forge-std/console2.sol";
 contract RiscZeroTransceiverTest is Test {
     uint64 constant SLOTS_PER_EPOCH = 32;
     bytes4 constant MOCK_SELECTOR = bytes4(0);
-    BoundlessReceiver br;
+    BlockRootOracle br;
     RiscZeroMockVerifier verifier;
     ConsensusState root;
     bytes32 imageID;
     uint24 permissibleTimespan;
     address admin;
     address user;
-    BoundlessReceiver.Journal journal;
+    BlockRootOracle.Journal journal;
     WormholeMock wormhole;
     address beaconEmitter;
     uint16 emitterChainId;
@@ -29,7 +29,7 @@ contract RiscZeroTransceiverTest is Test {
     function setUp() public {
         string memory proofData = vm.readFile("./test/proof.json");
 
-        journal = abi.decode(vm.parseJsonBytes(proofData, ".journal"), (BoundlessReceiver.Journal));
+        journal = abi.decode(vm.parseJsonBytes(proofData, ".journal"), (BlockRootOracle.Journal));
         root = journal.preState;
         imageID = vm.parseJsonBytes32(proofData, ".image_id");
         permissibleTimespan = 3600 * 24 * 3; // 72 hr timespan
@@ -41,7 +41,7 @@ contract RiscZeroTransceiverTest is Test {
         emitterChainId = 1;
 
         verifier = new RiscZeroMockVerifier(MOCK_SELECTOR);
-        br = new BoundlessReceiver(
+        br = new BlockRootOracle(
             root,
             permissibleTimespan,
             address(verifier),
@@ -70,7 +70,7 @@ contract RiscZeroTransceiverTest is Test {
     function testFuzz_AdminCanUpdatePermissibleTimespan(uint24 newPermissibleTimespan) public {
         vm.prank(admin);
         if (newPermissibleTimespan == permissibleTimespan) {
-            vm.expectRevert(BoundlessReceiver.InvalidArgument.selector);
+            vm.expectRevert(BlockRootOracle.InvalidArgument.selector);
         }
         br.updatePermissibleTimespan(newPermissibleTimespan);
 
@@ -82,7 +82,7 @@ contract RiscZeroTransceiverTest is Test {
     function testFuzz_AdminCanUpdateImageID(bytes32 newImageID) public {
         vm.prank(admin);
         if (newImageID == imageID) {
-            vm.expectRevert(BoundlessReceiver.InvalidArgument.selector);
+            vm.expectRevert(BlockRootOracle.InvalidArgument.selector);
         }
         br.updateImageID(newImageID);
 
@@ -92,7 +92,7 @@ contract RiscZeroTransceiverTest is Test {
     }
 
     function test_ManualTransitionByAdmin() public {
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: 1, root: bytes32(uint256(1)) }),
@@ -104,7 +104,7 @@ contract RiscZeroTransceiverTest is Test {
         bytes memory journalData = abi.encode(journal);
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Transitioned(
+        emit BlockRootOracle.Transitioned(
             journal.preState.finalizedCheckpoint.epoch,
             journal.postState.finalizedCheckpoint.epoch,
             journal.preState,
@@ -125,7 +125,7 @@ contract RiscZeroTransceiverTest is Test {
     }
 
     function test_ManualTransitionByNonAdminReverts() public {
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: 1, root: bytes32(uint256(1)) }),
@@ -142,7 +142,7 @@ contract RiscZeroTransceiverTest is Test {
     }
 
     function test_ManualTransitionIgnoresPreState() public {
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: 1, root: bytes32(uint256(1)) }),
                 finalizedCheckpoint: Checkpoint({ epoch: 1, root: bytes32(uint256(1)) })
@@ -157,7 +157,7 @@ contract RiscZeroTransceiverTest is Test {
         bytes memory journalData = abi.encode(journal);
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Transitioned(
+        emit BlockRootOracle.Transitioned(
             journal.preState.finalizedCheckpoint.epoch,
             journal.postState.finalizedCheckpoint.epoch,
             journal.preState,
@@ -172,7 +172,7 @@ contract RiscZeroTransceiverTest is Test {
     }
 
     function test_ManualTransitionPermissibleTimespanLapsedSucceeds() public {
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({
@@ -190,7 +190,7 @@ contract RiscZeroTransceiverTest is Test {
         bytes memory journalData = abi.encode(journal);
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Transitioned(
+        emit BlockRootOracle.Transitioned(
             journal.preState.finalizedCheckpoint.epoch,
             journal.postState.finalizedCheckpoint.epoch,
             journal.preState,
@@ -221,7 +221,7 @@ contract RiscZeroTransceiverTest is Test {
     }
 
     function test_TransitionFailsOnWrongPreState() public {
-        BoundlessReceiver.Journal memory journal_ = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal_ = BlockRootOracle.Journal({
             preState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: 1, root: bytes32(uint256(1)) }),
                 finalizedCheckpoint: Checkpoint({ epoch: 1, root: bytes32(uint256(1)) })
@@ -231,14 +231,14 @@ contract RiscZeroTransceiverTest is Test {
         });
         RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal_)));
 
-        vm.expectRevert(BoundlessReceiver.InvalidPreState.selector);
+        vm.expectRevert(BlockRootOracle.InvalidPreState.selector);
         vm.startPrank(admin);
         br.transition(abi.encode(journal_), receipt.seal);
         vm.stopPrank();
     }
 
     function test_TransitionFailsOnImpermissibleSpan() public {
-        BoundlessReceiver.Journal memory journal_ = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal_ = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({
@@ -259,7 +259,7 @@ contract RiscZeroTransceiverTest is Test {
                 + permissibleTimespan + 1
         );
 
-        vm.expectRevert(BoundlessReceiver.PermissibleTimespanLapsed.selector);
+        vm.expectRevert(BlockRootOracle.PermissibleTimespanLapsed.selector);
         vm.startPrank(admin);
         br.transition(abi.encode(journal_), receipt.seal);
         vm.stopPrank();
@@ -274,7 +274,7 @@ contract RiscZeroTransceiverTest is Test {
         wormhole.setMockVM(encodedVM, epoch, root, beaconEmitter, emitterChainId);
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Confirmed(epoch, root, 2); // WORMHOLE_FLAG = 0x2
+        emit BlockRootOracle.Confirmed(epoch, root, 2); // WORMHOLE_FLAG = 0x2
 
         br.receiveWormholeMessage(encodedVM);
 
@@ -292,7 +292,7 @@ contract RiscZeroTransceiverTest is Test {
         bytes memory encodedVM = abi.encodePacked("wrong_emitter", epoch, root);
         wormhole.setMockVM(encodedVM, epoch, root, wrongEmitter, emitterChainId);
 
-        vm.expectRevert(BoundlessReceiver.UnauthorizedEmitterAddress.selector);
+        vm.expectRevert(BlockRootOracle.UnauthorizedEmitterAddress.selector);
         br.receiveWormholeMessage(encodedVM);
     }
 
@@ -304,7 +304,7 @@ contract RiscZeroTransceiverTest is Test {
         bytes memory encodedVM = abi.encodePacked("wrong_chain", epoch, root);
         wormhole.setMockVM(encodedVM, epoch, root, beaconEmitter, wrongChainId);
 
-        vm.expectRevert(BoundlessReceiver.UnauthorizedEmitterChainId.selector);
+        vm.expectRevert(BlockRootOracle.UnauthorizedEmitterChainId.selector);
         br.receiveWormholeMessage(encodedVM);
     }
 
@@ -326,7 +326,7 @@ contract RiscZeroTransceiverTest is Test {
         wormhole.setMockVM(encodedVM, journal.finalizedSlot, root_, beaconEmitter, emitterChainId);
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Confirmed(slot, root_, 2); // WORMHOLE_FLAG = 0x2
+        emit BlockRootOracle.Confirmed(slot, root_, 2); // WORMHOLE_FLAG = 0x2
 
         br.receiveWormholeMessage(encodedVM);
 
@@ -336,7 +336,7 @@ contract RiscZeroTransceiverTest is Test {
         assertTrue(valid);
 
         // Step 2: Boundless transition for same epoch and root
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: epoch, root: root_ }),
@@ -353,7 +353,7 @@ contract RiscZeroTransceiverTest is Test {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Transitioned(
+        emit BlockRootOracle.Transitioned(
             journal.preState.finalizedCheckpoint.epoch,
             journal.postState.finalizedCheckpoint.epoch,
             journal.preState,
@@ -361,7 +361,7 @@ contract RiscZeroTransceiverTest is Test {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Confirmed(slot, root_, 3); // BOUNDLESS_FLAG | WORMHOLE_FLAG = 0x3
+        emit BlockRootOracle.Confirmed(slot, root_, 3); // BOUNDLESS_FLAG | WORMHOLE_FLAG = 0x3
 
         vm.prank(admin);
         br.transition(abi.encode(journal), receipt.seal);
@@ -378,7 +378,7 @@ contract RiscZeroTransceiverTest is Test {
         bytes32 root_ = bytes32(uint256(2));
 
         // Step 1: Boundless transition first
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: epoch, root: root_ }),
@@ -395,7 +395,7 @@ contract RiscZeroTransceiverTest is Test {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Transitioned(
+        emit BlockRootOracle.Transitioned(
             journal.preState.finalizedCheckpoint.epoch,
             journal.postState.finalizedCheckpoint.epoch,
             journal.preState,
@@ -403,7 +403,7 @@ contract RiscZeroTransceiverTest is Test {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Confirmed(slot, root_, 1); // BOUNDLESS_FLAG = 0x1
+        emit BlockRootOracle.Confirmed(slot, root_, 1); // BOUNDLESS_FLAG = 0x1
         vm.prank(admin);
         br.transition(abi.encode(journal), receipt.seal);
 
@@ -417,7 +417,7 @@ contract RiscZeroTransceiverTest is Test {
         wormhole.setMockVM(encodedVM, slot, root_, beaconEmitter, emitterChainId);
 
         vm.expectEmit(true, true, true, true);
-        emit BoundlessReceiver.Confirmed(slot, root_, 3); // BOUNDLESS_FLAG | WORMHOLE_FLAG = 0x3
+        emit BlockRootOracle.Confirmed(slot, root_, 3); // BOUNDLESS_FLAG | WORMHOLE_FLAG = 0x3
 
         br.receiveWormholeMessage(encodedVM);
 
@@ -444,7 +444,7 @@ contract RiscZeroTransceiverTest is Test {
         br.receiveWormholeMessage(encodedVM);
 
         // Step 2: Boundless transition for epoch root.epoch + 2  with same root
-        BoundlessReceiver.Journal memory journal = BoundlessReceiver.Journal({
+        BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({ epoch: boundlessSlot, root: sameRoot }),

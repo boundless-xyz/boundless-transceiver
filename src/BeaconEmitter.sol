@@ -4,22 +4,21 @@ pragma solidity ^0.8.30;
 import { IWormhole } from "wormhole-sdk/interfaces/IWormhole.sol";
 import { Beacon } from "./lib/Beacon.sol";
 
-/**
- * @title BeaconEmitter
- * @notice Read beacon block roots via EIP-4788 and emit them as multicast Wormhole messages.
- *
- * @dev Note this must be deployed on a chain that uses beacon chain consensus and supports EIP-4788, such as Ethereum
- * or Gnosis
- * @dev The block root for a given slot can only be retrieved while it is in the beacon roots history buffer, which is
- * 8191 slots (about 27 hours) on Ethereum.
- * @dev A receiver must check that messages are from the correct chain/contract before processing them
- *
- */
+/// @title BeaconEmitter
+/// @notice Contract for reading beacon block roots via EIP-4788 and emitting them as multicast Wormhole messages.
+/// @dev This contract enables cross-chain communication of Ethereum beacon chain state by reading
+/// block roots from the beacon chain and publishing them through Wormhole's messaging protocol.
+/// @dev Requirements:
+/// - Must be deployed on a chain that uses beacon chain consensus and supports EIP-4788 (e.g., Ethereum, Gnosis)
+/// - Block roots can only be retrieved while within the beacon roots history buffer (8191 slots ~27 hours on Ethereum)
+/// - Receivers must verify message origin (chain/contract) before processing
 contract BeaconEmitter {
     /// @notice Wormhole consistency level for message finality.
     /// @dev Level 0 requires the block containing the message to be finalized.
     uint8 immutable CONSISTENCY_LEVEL = 0;
 
+    /// @notice The Wormhole core contract instance for cross-chain messaging.
+    /// @dev Immutable to prevent upgrade risks and ensure consistent message routing.
     IWormhole public immutable WORMHOLE;
 
     Beacon.BeaconConfig private _BEACON_CONFIG;
@@ -34,6 +33,10 @@ contract BeaconEmitter {
         _BEACON_CONFIG = beaconConfig;
     }
 
+    /// @notice Emits a Wormhole message containing the beacon block root for a specific slot.
+    /// @dev Retrieves the beacon block root for the given slot using EIP-4788 and publishes
+    /// it as a Wormhole message for cross-chain consumption.
+    /// @param slot The beacon chain slot number to retrieve the block root for.
     function emitForSlot(uint64 slot) external payable {
         bytes32 blockRoot = Beacon.findBlockRoot(slot, _BEACON_CONFIG);
 

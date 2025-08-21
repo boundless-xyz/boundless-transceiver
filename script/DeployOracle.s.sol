@@ -2,7 +2,7 @@
 pragma solidity >=0.8.28 <0.9.0;
 
 import { BaseScript } from "./Base.s.sol";
-import { BoundlessReceiver } from "../src/BoundlessReceiver.sol";
+import { BlockRootOracle } from "../src/BlockRootOracle.sol";
 import { ConsensusState, Checkpoint } from "../src/tseth.sol";
 import { console } from "forge-std/console.sol";
 import { Beacon } from "../src/lib/Beacon.sol";
@@ -30,7 +30,7 @@ contract DeployReceiver is BaseScript {
         });
 
         vm.startBroadcast(deployerPk);
-        BoundlessReceiver br = new BoundlessReceiver(
+        BlockRootOracle br = new BlockRootOracle(
             startingState,
             permissibleTimespan,
             verifier,
@@ -44,7 +44,7 @@ contract DeployReceiver is BaseScript {
         );
         vm.stopBroadcast();
 
-        console.log("BoundlessReceiver: ", address(br));
+        console.log("BlockRootOracle: ", address(br));
         return address(br);
     }
 }

@@ -1,4 +1,4 @@
-# Boundless Transceiver Project
+# Block Root Oracle Project
 
 ## Implementation Plan
 
@@ -11,9 +11,11 @@
 - [x] Integration of Wormhole
 - [x] Testing of Wormhole VAA
 - [x] Testing of Confirmation logic between Wormhole and RZ
-- [ ] Testing BeaconEmitter
-- [ ] Testing End-to-end from BeaconEmitter to Prover
-- [ ] Interface and documentation
+- [x] Testing BeaconEmitter
+- [x] Testing End-to-end from BeaconEmitter to Prover
+- [x] Interface and documentation
+- [x] Rename BoundlessReceiver references to `BlockRootOracle` in lieu of the incoming BoundlessTransceiver
+- [x] Complete documentation updates for all contracts
 
 ### References
 
@@ -23,7 +25,16 @@
 
 ## Overview
 
-This template provides a robust foundation for Solidity smart contract development using:
+The Block Root Oracle Project provides a secure system for managing and validating Ethereum beacon chain block roots with dual confirmation from both RISC Zero zero-knowledge proofs and Wormhole cross-chain messaging.
+
+Key components:
+
+- **BlockRootOracle.sol**: Main contract that manages beacon block roots with dual confirmation system
+- **BeaconEmitter.sol**: Contract that emits beacon block roots via Wormhole messaging
+- **Beacon.sol**: Library for interacting with Ethereum beacon chain data and block roots
+- **Dual Confirmation System**: Combines RISC Zero proofs (Boundless) with Wormhole attestations for enhanced security
+
+This project uses:
 
 - [Forge](https://github.com/foundry-rs/foundry/blob/master/forge): Compile, test, fuzz, format, and deploy smart contracts
 - [Bun](https://bun.sh/): Modern package management (instead of git submodules)
@@ -87,14 +98,29 @@ $ forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 
 
 ### Project Structure
 
-Default configurations in:
-
 ```text
 ├── .editorconfig
 ├── .gitignore
 ├── .solhint.json
+├── AGENTS.md
 ├── foundry.toml
-└── remappings.txt
+├── remappings.txt
+└── README.md
+```
+
+### Smart Contract Structure
+
+```text
+src/
+├── BlockRootOracle.sol          # Main contract for beacon block root management
+├── BeaconEmitter.sol            # Contract for emitting beacon roots via Wormhole
+├── tseth.sol                    # Core data structures (Checkpoint, ConsensusState)
+├── interfaces/
+│   └── IRiscZeroVerifier.sol    # Interface for RISC Zero verifier
+└── lib/
+    ├── Beacon.sol               # Beacon chain utilities
+    ├── RiscZeroVerifier.sol     # RISC Zero verification structures
+    └── Util.sol                 # Utility functions
 ```
 
 ## Related Projects

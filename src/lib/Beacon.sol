@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.30;
 
-/// @title Beacon Library
+/// @title Beacon Chain Utilities
+/// @notice Library for interacting with Ethereum beacon chain data and block roots
+/// @dev Provides utilities for finding beacon block roots and calculating epoch timestamps
 library Beacon {
     struct BeaconConfig {
         uint256 genesisBeaconBlockTimestamp;
@@ -11,10 +13,10 @@ library Beacon {
         address beaconRootsAddress;
     }
 
-    /// @dev Timestamp out of range for the the beacon roots precompile.
+    /// @notice Timestamp out of range for the the beacon roots precompile
     error TimestampOutOfRange();
 
-    /// @dev No block root is found using the beacon roots precompile.
+    /// @notice No block root is found using the beacon roots precompile
     error NoBlockRootFound();
 
     /// @notice Attempts to find the block root for the given slot

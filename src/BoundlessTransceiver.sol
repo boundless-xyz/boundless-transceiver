@@ -4,7 +4,8 @@ pragma solidity ^0.8.30;
 import { Transceiver } from "wormhole-ntt/Transceiver/Transceiver.sol";
 import { TransceiverStructs } from "wormhole-ntt/libraries/TransceiverStructs.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
-import { BoundlessReceiver, TWO_OF_TWO_FLAG } from "./BoundlessReceiver.sol";
+import { TWO_OF_TWO_FLAG } from "./BlockRootOracle.sol";
+import { IBlockRootOracle } from "./interfaces/IBlockRootOracle.sol";
 import { IRiscZeroVerifier } from "./interfaces/IRiscZeroVerifier.sol";
 import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
 
@@ -15,8 +16,8 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public immutable verifier;
 
-    /// @notice The BoundlessReceiver contract that will be used to verify the block roots.
-    BoundlessReceiver public immutable boundlessReceiver;
+    /// @notice The blockRootOracle contract that will be used to verify the block roots.
+    IBlockRootOracle public immutable blockRootOracle;
 
     /// @notice The BoundlessTransceiver contract deployed on Ethereum. Address(0) if this is Ethereum
     address public immutable ethereumBoundlessTransceiver;
@@ -30,7 +31,7 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Journal that is committed to by the guest.
     struct Journal {
         // Commitment locks this proof to a specific block root
-        // which can be verified against the BoundlessReceiver contract
+        // which can be verified against the blockRootOracle contract
         Steel.Commitment commitment;
 
         // The encoded TransceiverMessage that this proof commits to
@@ -48,7 +49,7 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Constructs a new BoundlessTransceiver.
     /// @param _manager The address of the NTT Manager contract
     /// @param _r0Verifier The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
-    /// @param _blockRootReceiver The address of the BoundlessReceiver contract on this chain
+    /// @param _blockRootReceiver The address of the blockRootOracle contract on this chain
     /// @param _imageID The image ID of the Risc0 program used for event inclusion proofs
     /// @param _ethereumBoundlessTransceiver The address of the corresponding BoundlessTransceiver contract on Ethereum (sending side)
     constructor(
@@ -59,7 +60,7 @@ contract BoundlessTransceiver is Transceiver {
         address _ethereumBoundlessTransceiver
     ) Transceiver(_manager) {
         verifier = IRiscZeroVerifier(_r0Verifier);
-        boundlessReceiver = BoundlessReceiver(_blockRootReceiver);
+        blockRootOracle = IBlockRootOracle(_blockRootReceiver);
         imageID = _imageID;
         ethereumBoundlessTransceiver = _ethereumBoundlessTransceiver;
     }
@@ -133,9 +134,9 @@ contract BoundlessTransceiver is Transceiver {
             .parseTransceiverAndNttManagerMessage(BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, journal.encodedMessage);
 
 
-        // Validate the steel commitment against a trusted beacon block root from the BoundlessReceiver
+        // Validate the steel commitment against a trusted beacon block root from the blockRootOracle
         require(
-            boundlessReceiver.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG),
+            blockRootOracle.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG),
             "Invalid commitment"
         );
 
@@ -152,53 +153,4 @@ contract BoundlessTransceiver is Transceiver {
             parsedNttManagerMessage
         );
     }
-
-    /// @notice Validates a Steel commitment. Only supports v1 commitments which identify the beacon block root by its timestamp
-    /// @param commitment The commitment to validate
-    /// @return True if the commitment is valid
-    function validateCommitment(Steel.Commitment memory commitment)
-        internal
-        view
-        returns (bool)
-    {
-        (uint240 blockID, uint16 version) = SteelEncoding.decodeVersionedID(
-            commitment.id
-        );
-        if (version != 1) {
-            revert Steel.InvalidCommitmentVersion();
-        }
-
-        return validateReceiverCommitment(blockID, commitment.digest, boundlessReceiver.TWO_OF_TWO_FLAG());
-    }
-
-    /// @notice Validates commitment against the BoundlessReceiver contract
-    /// @param timestamp The timestamp indicating the beacon block root the commitment is associated with
-    /// @param parentRoot The expected parent beacon block root
-    /// @param confirmationLevel A flag indicating required level of confirmation the block root must meet
-    /// @return True if the commitment is valid
-    function validateReceiverCommitment(
-        uint256 timestamp,
-        bytes32 parentRoot,
-        uint16 confirmationLevel
-    ) internal view returns (bool) {
-        uint256 genesisTime = boundlessReceiver.GENESIS_BLOCK_TIMESTAMP();
-        require(timestamp >= genesisTime);
-
-        // Compute the slot corresponding to the commitment's timestamp
-        uint64 slot = SafeCast.toUint64((timestamp - genesisTime) / boundlessReceiver.SECONDS_PER_SLOT());
-
-        // Iterate backwards to locate the expected parent block
-        while (slot > 0) {
-            slot--;
-            (bytes32 headerRoot, bool valid) = boundlessReceiver.blockRoot(slot, confirmationLevel);
-            // Skip missed slots (empty roots)
-            if (headerRoot == boundlessReceiver.UNDEFINED_ROOT()) {
-                continue;
-            }
-            return valid && (headerRoot == parentRoot);
-        }
-
-        return false;
-    }
-
 }

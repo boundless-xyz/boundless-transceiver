@@ -33,10 +33,8 @@ contract BoundlessTransceiver is Transceiver {
         // Commitment locks this proof to a specific block root
         // which can be verified against the blockRootOracle contract
         Steel.Commitment commitment;
-
         // The encoded TransceiverMessage that this proof commits to
         bytes encodedMessage;
-
         // The contract that emitted the message event
         address emitterContract;
     }
@@ -51,27 +49,24 @@ contract BoundlessTransceiver is Transceiver {
     /// @param _r0Verifier The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
     /// @param _blockRootReceiver The address of the blockRootOracle contract on this chain
     /// @param _imageID The image ID of the Risc0 program used for event inclusion proofs
-    /// @param _ethereumBoundlessTransceiver The address of the corresponding BoundlessTransceiver contract on Ethereum (sending side)
+    /// @param _ethereumBoundlessTransceiver The address of the corresponding BoundlessTransceiver contract on Ethereum
+    /// (sending side)
     constructor(
         address _manager,
         address _r0Verifier,
         address _blockRootReceiver,
         bytes32 _imageID,
         address _ethereumBoundlessTransceiver
-    ) Transceiver(_manager) {
+    )
+        Transceiver(_manager)
+    {
         verifier = IRiscZeroVerifier(_r0Verifier);
         blockRootOracle = IBlockRootOracle(_blockRootReceiver);
         imageID = _imageID;
         ethereumBoundlessTransceiver = _ethereumBoundlessTransceiver;
     }
 
-    function getTransceiverType()
-        external
-        view
-        virtual
-        override
-        returns (string memory)
-    {
+    function getTransceiverType() external view virtual override returns (string memory) {
         return "boundless";
     }
 
@@ -89,10 +84,7 @@ contract BoundlessTransceiver is Transceiver {
     {
         require(block.chainid == 1, "Only Ethereum supported as sender");
 
-        (
-            ,
-            bytes memory encodedTransceiverPayload
-        ) = TransceiverStructs.buildAndEncodeTransceiverMessage(
+        (, bytes memory encodedTransceiverPayload) = TransceiverStructs.buildAndEncodeTransceiverMessage(
             BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX,
             toWormholeFormat(caller),
             recipientNttManagerAddress,
@@ -108,7 +100,12 @@ contract BoundlessTransceiver is Transceiver {
     function _quoteDeliveryPrice(
         uint16, // targetChain,
         TransceiverStructs.TransceiverInstruction memory // transceiverInstruction
-    ) internal pure override returns (uint256) {
+    )
+        internal
+        pure
+        override
+        returns (uint256)
+    {
         return 0; // Relayer fees are not processed at this time
     }
 
@@ -122,23 +119,17 @@ contract BoundlessTransceiver is Transceiver {
         Journal memory journal = abi.decode(journalData, (Journal));
 
         // Ensure the message came from the expected contract
-        require(
-            journal.emitterContract == ethereumBoundlessTransceiver,
-            "Invalid emitter contract"
-        );
+        require(journal.emitterContract == ethereumBoundlessTransceiver, "Invalid emitter contract");
 
         // parse the encoded Transceiver payload
         TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage;
         TransceiverStructs.NttManagerMessage memory parsedNttManagerMessage;
-        (parsedTransceiverMessage, parsedNttManagerMessage) = TransceiverStructs
-            .parseTransceiverAndNttManagerMessage(BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, journal.encodedMessage);
-
+        (parsedTransceiverMessage, parsedNttManagerMessage) = TransceiverStructs.parseTransceiverAndNttManagerMessage(
+            BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, journal.encodedMessage
+        );
 
         // Validate the steel commitment against a trusted beacon block root from the blockRootOracle
-        require(
-            blockRootOracle.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG),
-            "Invalid commitment"
-        );
+        require(blockRootOracle.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG), "Invalid commitment");
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);

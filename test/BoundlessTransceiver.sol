@@ -11,7 +11,6 @@ import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC
 import { Receipt as RiscZeroReceipt } from "@risc0/contracts/IRiscZeroVerifier.sol";
 import { RiscZeroMockVerifier } from "@risc0/contracts/test/RiscZeroMockVerifier.sol";
 import { Steel, Encoding } from "@risc0/contracts/steel/Steel.sol";
-import { ImageID } from "./ImageID.sol";
 
 import { DummyTokenMintAndBurn } from "./mocks/DummyToken.sol";
 import { DummyReceiver } from "./mocks/DummyReceiver.sol";
@@ -27,7 +26,8 @@ contract BoundlessTransceiverTest is Test {
     bool constant SKIP_RATE_LIMITING = true;
     bytes4 constant MOCK_SELECTOR = bytes4(0); // R0 proof selector for testing
     uint16 constant WORMHOLE_CHAIN_ID = 333; // The wormhole chain ID of the chain the transceiver being tested is
-        // deployed on
+    bytes32 public constant NTT_MESSAGE_INCLUSION_ID = // Note this will change with every build. Ok as a mock only
+        bytes32(0x1f0dac03fa82751534fe6372619fd6e9975c169864e48ece108fca6c4366df3d);
 
     NttManager manager;
     DummyTokenMintAndBurn token;
@@ -51,7 +51,7 @@ contract BoundlessTransceiverTest is Test {
         receiver = new DummyReceiver();
 
         transceiver = new BoundlessTransceiver(
-            address(manager), address(verifier), address(receiver), ImageID.NTT_MESSAGE_INCLUSION_ID, address(0)
+            address(manager), address(verifier), address(receiver), NTT_MESSAGE_INCLUSION_ID, address(0)
         );
         vm.prank(OWNER);
         manager.setTransceiver(address(transceiver));
@@ -141,8 +141,7 @@ contract BoundlessTransceiverTest is Test {
                 payload: encodedNtt
             });
             bytes memory encodedNttManagerMessage = TransceiverStructs.encodeNttManagerMessage(nttManagerMessage);
-            nttManagerMessageHash =
-                TransceiverStructs.nttManagerMessageDigest(2, nttManagerMessage);
+            nttManagerMessageHash = TransceiverStructs.nttManagerMessageDigest(2, nttManagerMessage);
 
             TransceiverStructs.TransceiverMessage memory transceiverMessage = TransceiverStructs.TransceiverMessage({
                 sourceNttManagerAddress: bytes32(0),
@@ -165,7 +164,7 @@ contract BoundlessTransceiverTest is Test {
         token.mint(address(manager), amount);
 
         // create a mock proof
-        RiscZeroReceipt memory receipt = verifier.mockProve(ImageID.NTT_MESSAGE_INCLUSION_ID, sha256(journalBytes));
+        RiscZeroReceipt memory receipt = verifier.mockProve(NTT_MESSAGE_INCLUSION_ID, sha256(journalBytes));
 
         transceiver.receiveMessage(journalBytes, receipt.seal);
         require(token.balanceOf(to) == amount, "Amount Incorrect");

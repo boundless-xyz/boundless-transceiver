@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 
 import { Steel } from "@risc0/contracts/steel/Steel.sol";
 
-
 interface IBlockRootOracle {
     /**
      * @notice the root associated with the provided `slot`. If the confirmation level isn't met or the root is not

@@ -5,5 +5,12 @@
   "[toml]": {
     "editor.defaultFormatter": "tamasfe.even-better-toml"
   },
-  "solidity.formatter": "forge"
+  "solidity.formatter": "forge",
+  "rust-analyzer.linkedProjects": [
+    "./Cargo.toml",
+    "./crates/zkvm/guest/Cargo.toml",
+  ],
+  "rust-analyzer.check.extraEnv": {
+    "RISC0_SKIP_BUILD": "1",
+  }
 }

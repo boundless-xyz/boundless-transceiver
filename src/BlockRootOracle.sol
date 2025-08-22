@@ -4,17 +4,19 @@ pragma solidity ^0.8.30;
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { IRiscZeroVerifier } from "@risc0/contracts/IRiscZeroVerifier.sol";
 import { ConsensusState, Checkpoint } from "./tseth.sol";
-import { IWormhole } from "wormhole-sdk/interfaces/IWormhole.sol";
-import { toWormholeFormat } from "wormhole-sdk/Utils.sol";
+import { IWormhole } from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
+import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { Beacon } from "./lib/Beacon.sol";
+import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
+uint16 constant BOUNDLESS_FLAG = 0;
+uint16 constant WORMHOLE_FLAG = 1;
+uint16 constant TWO_OF_TWO_FLAG = uint16((1 << BOUNDLESS_FLAG) | (1 << WORMHOLE_FLAG));
 
 contract BlockRootOracle is AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 constant UNDEFINED_ROOT = bytes32(0);
-
-    uint16 public constant BOUNDLESS_FLAG = 0;
-    uint16 public constant WORMHOLE_FLAG = 1;
-    uint16 public constant TWO_OF_TWO_FLAG = uint16((1 << BOUNDLESS_FLAG) | (1 << WORMHOLE_FLAG));
 
     /// @notice Tracks confirmation status for beacon chain checkpoints
     /// @dev Used to determine the level of validation for a given checkpoint
@@ -166,7 +168,7 @@ contract BlockRootOracle is AccessControl {
     /// @param confirmationLevel The level of confirmations required for validation
     /// @return root The beacon block root for the given slot
     /// @return valid Whether the root is valid based on confirmation level requirements
-    function blockRoot(uint64 slot, uint16 confirmationLevel) external view returns (bytes32 root, bool valid) {
+    function blockRoot(uint64 slot, uint16 confirmationLevel) public view returns (bytes32 root, bool valid) {
         root = roots[slot];
         if (root == UNDEFINED_ROOT) {
             valid = false;
@@ -276,5 +278,44 @@ contract BlockRootOracle is AccessControl {
     function _sufficientConfirmations(uint16 confirmations, uint16 targetLevel) internal pure returns (bool) {
         uint16 remainder = confirmations & targetLevel;
         return remainder == targetLevel;
+    }
+
+    /// @notice Validates a Steel commitment. Only supports v2 commitments which identify the beacon block root by its
+    /// slot
+    /// @param commitment The commitment to validate
+    /// @param confirmationLevel  A flag indicating required level of confirmation the block root must meet
+    /// @return True if the commitment is valid
+    function validateCommitment(
+        Steel.Commitment memory commitment,
+        uint16 confirmationLevel
+    )
+        external
+        view
+        returns (bool)
+    {
+        (uint240 blockID, uint16 version) = SteelEncoding.decodeVersionedID(commitment.id);
+        if (version != 2) {
+            revert Steel.InvalidCommitmentVersion();
+        }
+
+        return validateReceiverCommitment(SafeCast.toUint64(blockID), commitment.digest, confirmationLevel);
+    }
+
+    /// @notice Validates commitment against the BoundlessReceiver contract
+    /// @param slot The timestamp indicating the beacon block root the commitment is associated with
+    /// @param expectedBlockRoot The expected parent beacon block root
+    /// @param confirmationLevel A flag indicating required level of confirmation the block root must meet
+    /// @return True if the commitment is valid
+    function validateReceiverCommitment(
+        uint64 slot,
+        bytes32 expectedBlockRoot,
+        uint16 confirmationLevel
+    )
+        internal
+        view
+        returns (bool)
+    {
+        (bytes32 root, bool valid) = blockRoot(slot, confirmationLevel);
+        return valid && (root == expectedBlockRoot);
     }
 }

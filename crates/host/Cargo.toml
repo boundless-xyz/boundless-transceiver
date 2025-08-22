@@ -1,0 +1,27 @@
+[package]
+name = "proof-builder"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "relay"
+path = "src/bin/relay.rs"
+
+[dependencies]
+zkvm = { path = "../zkvm" }
+common = { path = "../common" }
+
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+
+risc0-steel = { workspace = true, features = ["host"] }
+risc0-ethereum-contracts = { workspace = true }
+risc0-zkvm = { workspace = true, features = ["std", "unstable", "client"] }
+
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+clap = { version = "4.5.44", features = ["derive", "env"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+alloy ={ version = "1.0.24" }

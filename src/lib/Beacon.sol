@@ -24,6 +24,7 @@ library Beacon {
     ///      N, you use the timestamp of slot N+1. If N+1 is not available, you use the timestamp of slot N+2, and
     ///      so on.
     /// @param slot The slot to get the block root for
+    /// @param config Specifies properties about the beacon chain being read
     /// @return blockRoot The beacon block root of the given slot
     function findBlockRoot(uint64 slot, BeaconConfig memory config) public view returns (bytes32 blockRoot) {
         uint256 currentBlockTimestamp = config.genesisBeaconBlockTimestamp + ((slot + 1) * config.slotSpeed);

@@ -1,15 +1,16 @@
 {
 	"name": "@boundless/receiver",
-	"description": "A simple foundry template starter to get going with smart contract development in Solidity",
-	"version": "1.0.0",
+	"description": "Wormhole NTT Transceiver contract and ZKVM guest for integration with The Signal: Ethereum by Boundless",
+	"version": "0.1.0",
 	"author": {
-		"name": "ignio-labs",
-		"url": "https://github.com/ignio-labs"
+		"name": "Boundless Network",
+		"url": "https://beboundless.xyz"
 	},
 	"dependencies": {
-		"@openzeppelin/contracts": "^5.3.0",
+		"@openzeppelin/contracts": "^4.8.1",
 		"@risc0/ethereum": "github:risc0/risc0-ethereum#v2.2.0",
-		"wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0"
+		"wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0",
+    "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#f106797359ba4a6743b9b4eeb06ee5415780df86"
 	},
 	"devDependencies": {
 		"forge-std": "github:foundry-rs/forge-std#v1.9.7",

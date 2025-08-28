@@ -1,4 +1,6 @@
 @openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+openzeppelin-contracts/=node_modules/@openzeppelin/
 @risc0/contracts/=node_modules/@risc0/ethereum/contracts/src/
 forge-std/=node_modules/forge-std/src/
-wormhole-sdk/=node_modules/wormhole-sdk/src/
+wormhole-solidity-sdk/=node_modules/wormhole-sdk/src/
+wormhole-ntt/=node_modules/wormhole-ntt/evm/src/

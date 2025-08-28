@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.8 <0.9.0;
 
-import { BoundlessTransceiver, BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX } from "../../src/BoundlessTransceiver.sol";
+import { BoundlessTransceiver, BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX } from "../src/BoundlessTransceiver.sol";
 import { TransceiverStructs } from "wormhole-ntt/libraries/TransceiverStructs.sol";
 import { packTrimmedAmount, TrimmedAmount } from "wormhole-ntt/libraries/TransceiverStructs.sol";
 import { NttManager } from "wormhole-ntt/NttManager/NttManager.sol";

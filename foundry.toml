@@ -4,7 +4,7 @@
 auto_detect_solc = false
 block_timestamp = 1_738_368_023
 bytecode_hash = "none"
-evm_version = "cancun"
+evm_version = "paris"
 fuzz = { runs = 1_000 }
 gas_reports = ["*"]
 optimizer = true

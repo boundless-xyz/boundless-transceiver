@@ -9,13 +9,17 @@ import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 contract DummyReceiver is IBlockRootOracle {
     mapping(uint64 slot => bytes32 blockRoot) private roots;
 
+    function setBlockRoot(uint64 slot, bytes32 root) public {
+        roots[slot] = root;
+    }
+
     function blockRoot(uint64 slot, uint16) public view returns (bytes32 root, bool valid) {
         // Dummy implementation for testing purposes
         root = roots[slot];
         if (root == bytes32(0)) {
             valid = false;
         }
-        valid = true; // Always return false for testing
+        valid = true;
     }
 
     function validateCommitment(
@@ -43,8 +47,7 @@ contract DummyReceiver is IBlockRootOracle {
         view
         returns (bool)
     {
-        return true;
-        // (bytes32 root, bool valid) = blockRoot(slot, confirmationLevel);
-        // return valid && (root == expectedBlockRoot);
+        (bytes32 root, bool valid) = blockRoot(slot, confirmationLevel);
+        return valid && (root == expectedBlockRoot);
     }
 }

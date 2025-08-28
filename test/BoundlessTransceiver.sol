@@ -166,6 +166,12 @@ contract BoundlessTransceiverTest is Test {
         // create a mock proof
         RiscZeroReceipt memory receipt = verifier.mockProve(NTT_MESSAGE_INCLUSION_ID, sha256(journalBytes));
 
+        vm.expectRevert("Invalid commitment");
+        transceiver.receiveMessage(journalBytes, receipt.seal);
+
+        // Set the expected block root in the dummy receiver
+        receiver.setBlockRoot(uint64(consensusSlot), blockRoot);
+
         transceiver.receiveMessage(journalBytes, receipt.seal);
         require(token.balanceOf(to) == amount, "Amount Incorrect");
 

@@ -27,7 +27,7 @@ contract BoundlessTransceiverTest is Test {
     bytes4 constant MOCK_SELECTOR = bytes4(0); // R0 proof selector for testing
     uint16 constant WORMHOLE_CHAIN_ID = 333; // The wormhole chain ID of the chain the transceiver being tested is
     bytes32 public constant NTT_MESSAGE_INCLUSION_ID = // Note this will change with every build. Ok as a mock only
-        bytes32(0x1f0dac03fa82751534fe6372619fd6e9975c169864e48ece108fca6c4366df3d);
+     bytes32(0x1f0dac03fa82751534fe6372619fd6e9975c169864e48ece108fca6c4366df3d);
 
     NttManager manager;
     DummyTokenMintAndBurn token;

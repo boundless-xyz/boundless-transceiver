@@ -18,3 +18,12 @@ yarn.lock
 !broadcast
 broadcast/*
 broadcast/*/31337/
+
+# rust
+Cargo.lock
+zkvm/guest/Cargo.lock
+target/
+
+# generated
+test/ImageID.sol
+test/Elf.sol

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.30;
 
-import { IWormhole } from "wormhole-sdk/interfaces/IWormhole.sol";
-import { toWormholeFormat } from "wormhole-sdk/Utils.sol";
+import { IWormhole } from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
+import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 
 contract WormholeMock is IWormhole {
     struct MockVM {

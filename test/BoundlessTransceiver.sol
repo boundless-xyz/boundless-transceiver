@@ -11,6 +11,7 @@ import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC
 import { Receipt as RiscZeroReceipt } from "@risc0/contracts/IRiscZeroVerifier.sol";
 import { RiscZeroMockVerifier } from "@risc0/contracts/test/RiscZeroMockVerifier.sol";
 import { Steel, Encoding } from "@risc0/contracts/steel/Steel.sol";
+import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 
 import { DummyTokenMintAndBurn } from "./mocks/DummyToken.sol";
 import { DummyReceiver } from "./mocks/DummyReceiver.sol";
@@ -25,7 +26,9 @@ contract BoundlessTransceiverTest is Test {
     uint64 constant RATE_LIMIT_DURATION = 0;
     bool constant SKIP_RATE_LIMITING = true;
     bytes4 constant MOCK_SELECTOR = bytes4(0); // R0 proof selector for testing
-    uint16 constant WORMHOLE_CHAIN_ID = 333; // The wormhole chain ID of the chain the transceiver being tested is
+    uint16 constant CHAIN_ID_A = 333;
+    uint16 constant CHAIN_ID_B = 666;
+    uint16 constant CHAIN_ID_C = 999;
     bytes32 public constant NTT_MESSAGE_INCLUSION_ID = // Note this will change with every build. Ok as a mock only
      bytes32(0x1f0dac03fa82751534fe6372619fd6e9975c169864e48ece108fca6c4366df3d);
 
@@ -40,7 +43,7 @@ contract BoundlessTransceiverTest is Test {
 
         address managerImplementation = address(
             new NttManager(
-                address(token), IManagerBase.Mode.LOCKING, WORMHOLE_CHAIN_ID, RATE_LIMIT_DURATION, SKIP_RATE_LIMITING
+                address(token), IManagerBase.Mode.LOCKING, CHAIN_ID_A, RATE_LIMIT_DURATION, SKIP_RATE_LIMITING
             )
         );
         manager = NttManager(address(new ERC1967Proxy(managerImplementation, "")));
@@ -51,38 +54,36 @@ contract BoundlessTransceiverTest is Test {
         receiver = new DummyReceiver();
 
         transceiver = new BoundlessTransceiver(
-            address(manager), address(verifier), address(receiver), NTT_MESSAGE_INCLUSION_ID, address(0)
+            address(manager), address(verifier), NTT_MESSAGE_INCLUSION_ID
         );
+        transceiver.setCommitmentValidator(CHAIN_ID_B, receiver);
         vm.prank(OWNER);
         manager.setTransceiver(address(transceiver));
     }
 
-    function test_sendMessageFromEthereum() public {
+    // Testing sending a message from CHAIN_A
+    function test_sendMessage() public {
         uint16 recipientChainId = 10;
         bytes32 recipientNttManagerAddress = bytes32(uint256(1010));
         bytes memory nttManagerMessage = bytes("nttManagerMessage");
         bytes32 refundAddress = bytes32(uint256(1011));
         TransceiverStructs.TransceiverInstruction memory instruction =
             TransceiverStructs.TransceiverInstruction(0, bytes(""));
+
+        (, bytes memory encodedTransceiverPayload) = TransceiverStructs.buildAndEncodeTransceiverMessage(
+            BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX,
+            toWormholeFormat(address(manager)),
+            recipientNttManagerAddress,
+            nttManagerMessage,
+            abi.encodePacked(CHAIN_ID_A)
+        );
 
         vm.prank(address(manager));
         vm.chainId(1); // Ethereum mainnet
-        transceiver.sendMessage(
-            recipientChainId, instruction, nttManagerMessage, recipientNttManagerAddress, refundAddress
-        );
-    }
 
-    function test_sendMessageFromOther() public {
-        uint16 recipientChainId = 10;
-        bytes32 recipientNttManagerAddress = bytes32(uint256(1010));
-        bytes memory nttManagerMessage = bytes("nttManagerMessage");
-        bytes32 refundAddress = bytes32(uint256(1011));
-        TransceiverStructs.TransceiverInstruction memory instruction =
-            TransceiverStructs.TransceiverInstruction(0, bytes(""));
-
-        vm.prank(address(manager));
-        vm.chainId(2); // Something other than Ethereum mainnet
-        vm.expectRevert("Only Ethereum supported as sender");
+        vm.expectEmit(address(transceiver));
+        // emit the event we expect to see
+        emit BoundlessTransceiver.SendTransceiverMessage(recipientChainId, encodedTransceiverPayload);
         transceiver.sendMessage(
             recipientChainId, instruction, nttManagerMessage, recipientNttManagerAddress, refundAddress
         );
@@ -104,16 +105,7 @@ contract BoundlessTransceiverTest is Test {
         );
     }
 
-    function test_receiveMessageEthereum() public {
-        bytes memory journal = bytes("journalData");
-        bytes memory seal = bytes("sealData");
-
-        vm.chainId(1); // Ethereum mainnet
-        vm.expectRevert("Ethereum not supported as sender");
-        transceiver.receiveMessage(journal, seal);
-    }
-
-    function test_receiveMessageNonEthereum() public {
+    function test_receiveMessageUnsupportedChain() public {
         uint240 consensusSlot = 1_234_567_890;
         bytes32 blockRoot = bytes32(uint256(1022));
 
@@ -130,7 +122,7 @@ contract BoundlessTransceiverTest is Test {
                 amount: packTrimmedAmount(amount, 18),
                 sourceToken: bytes32(uint256(1022)),
                 to: bytes32(uint256(uint160(to))), // convert to wormhole format
-                toChain: WORMHOLE_CHAIN_ID,
+                toChain: CHAIN_ID_A,
                 additionalPayload: new bytes(0)
             });
             bytes memory encodedNtt = TransceiverStructs.encodeNativeTokenTransfer(ntt);
@@ -147,7 +139,59 @@ contract BoundlessTransceiverTest is Test {
                 sourceNttManagerAddress: bytes32(0),
                 recipientNttManagerAddress: recipientNttManagerAddress,
                 nttManagerPayload: encodedNttManagerMessage,
-                transceiverPayload: bytes("")
+                transceiverPayload: abi.encodePacked(CHAIN_ID_C)
+            });
+            encodedTransceiverMessage =
+                TransceiverStructs.encodeTransceiverMessage(BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, transceiverMessage);
+        }
+
+        bytes memory journalBytes = abi.encode(
+            BoundlessTransceiver.Journal({
+                commitment: Steel.Commitment(Encoding.encodeVersionedID(consensusSlot, 2), blockRoot, bytes32(0x0)),
+                encodedMessage: encodedTransceiverMessage,
+                emitterContract: address(0)
+            })
+        );
+
+        vm.expectRevert("Unsupported source chain");
+        transceiver.receiveMessage(journalBytes, bytes("dummy seal"));
+    }
+
+    function test_receiveMessage() public {
+        uint240 consensusSlot = 1_234_567_890;
+        bytes32 blockRoot = bytes32(uint256(1022));
+
+        bytes32 messageId = bytes32(uint256(25));
+        bytes32 recipientNttManagerAddress = bytes32(uint256(uint160(address(manager))));
+
+        address to = address(1234);
+        uint64 amount = 12_345_670_000_000_000;
+
+        bytes memory encodedTransceiverMessage;
+        bytes32 nttManagerMessageHash;
+        {
+            TransceiverStructs.NativeTokenTransfer memory ntt = TransceiverStructs.NativeTokenTransfer({
+                amount: packTrimmedAmount(amount, 18),
+                sourceToken: bytes32(uint256(1022)),
+                to: bytes32(uint256(uint160(to))), // convert to wormhole format
+                toChain: CHAIN_ID_A,
+                additionalPayload: new bytes(0)
+            });
+            bytes memory encodedNtt = TransceiverStructs.encodeNativeTokenTransfer(ntt);
+
+            TransceiverStructs.NttManagerMessage memory nttManagerMessage = TransceiverStructs.NttManagerMessage({
+                id: messageId,
+                sender: bytes32(uint256(1)),
+                payload: encodedNtt
+            });
+            bytes memory encodedNttManagerMessage = TransceiverStructs.encodeNttManagerMessage(nttManagerMessage);
+            nttManagerMessageHash = TransceiverStructs.nttManagerMessageDigest(CHAIN_ID_B, nttManagerMessage);
+
+            TransceiverStructs.TransceiverMessage memory transceiverMessage = TransceiverStructs.TransceiverMessage({
+                sourceNttManagerAddress: bytes32(0),
+                recipientNttManagerAddress: recipientNttManagerAddress,
+                nttManagerPayload: encodedNttManagerMessage,
+                transceiverPayload: abi.encodePacked(CHAIN_ID_B)
             });
             encodedTransceiverMessage =
                 TransceiverStructs.encodeTransceiverMessage(BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, transceiverMessage);

@@ -2,10 +2,11 @@
 pragma solidity ^0.8.30;
 
 import { Transceiver } from "wormhole-ntt/Transceiver/Transceiver.sol";
+import { ManagerBase } from "wormhole-ntt/NttManager/ManagerBase.sol";
 import { TransceiverStructs } from "wormhole-ntt/libraries/TransceiverStructs.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { TWO_OF_TWO_FLAG } from "./BlockRootOracle.sol";
-import { IBlockRootOracle } from "./interfaces/IBlockRootOracle.sol";
+import { ICommitmentValidator } from "./interfaces/ICommitmentValidator.sol";
 import { IRiscZeroVerifier } from "./interfaces/IRiscZeroVerifier.sol";
 import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
 
@@ -16,17 +17,12 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public immutable verifier;
 
-    /// @notice The blockRootOracle contract that will be used to verify the block roots.
-    IBlockRootOracle public immutable blockRootOracle;
-
-    /// @notice The BoundlessTransceiver contract deployed on Ethereum. Address(0) if this is Ethereum
-    address public immutable ethereumBoundlessTransceiver;
+    /// @notice Map from [Wormhole chain ID](https://wormhole.com/docs/products/reference/chain-ids/)
+    /// @notice to contract that will be used to verify the Steel commitments from the foreign chain.
+    mapping(uint16 => ICommitmentValidator) public commitmentValidators;
 
     /// @notice The image ID of the Risc0 program used for event inclusion proofs.
     bytes32 public immutable imageID;
-
-    /// @notice The Wormhole chain identifier of the source chain. Currently can only receive from Ethereum mainnet.
-    uint16 sourceChainId = 2;
 
     /// @notice Journal that is committed to by the guest.
     struct Journal {
@@ -47,23 +43,16 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Constructs a new BoundlessTransceiver.
     /// @param _manager The address of the NTT Manager contract
     /// @param _r0Verifier The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
-    /// @param _blockRootReceiver The address of the blockRootOracle contract on this chain
     /// @param _imageID The image ID of the Risc0 program used for event inclusion proofs
-    /// @param _ethereumBoundlessTransceiver The address of the corresponding BoundlessTransceiver contract on Ethereum
-    /// (sending side)
     constructor(
         address _manager,
         address _r0Verifier,
-        address _blockRootReceiver,
-        bytes32 _imageID,
-        address _ethereumBoundlessTransceiver
+        bytes32 _imageID
     )
         Transceiver(_manager)
     {
         verifier = IRiscZeroVerifier(_r0Verifier);
-        blockRootOracle = IBlockRootOracle(_blockRootReceiver);
         imageID = _imageID;
-        ethereumBoundlessTransceiver = _ethereumBoundlessTransceiver;
     }
 
     function getTransceiverType() external view virtual override returns (string memory) {
@@ -82,14 +71,12 @@ contract BoundlessTransceiver is Transceiver {
         internal
         override
     {
-        require(block.chainid == 1, "Only Ethereum supported as sender");
-
         (, bytes memory encodedTransceiverPayload) = TransceiverStructs.buildAndEncodeTransceiverMessage(
             BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX,
             toWormholeFormat(caller),
             recipientNttManagerAddress,
             nttManagerMessage,
-            new bytes(0)
+            abi.encodePacked(ManagerBase(nttManager).chainId())
         );
 
         // This is the event that the relayer is listening for and will build a ZK
@@ -114,12 +101,10 @@ contract BoundlessTransceiver is Transceiver {
     /// @param seal The opaque ZK proof seal that allows it to be verified on-chain
     /// @dev This function verifies the ZK proof, checks the commitments, then forwards the message to the NTT Manager.
     function receiveMessage(bytes calldata journalData, bytes calldata seal) external {
-        require(block.chainid != 1, "Ethereum not supported as sender"); // Can only receive on non-Ethereum chains
-
         Journal memory journal = abi.decode(journalData, (Journal));
 
         // Ensure the message came from the expected contract
-        require(journal.emitterContract == ethereumBoundlessTransceiver, "Invalid emitter contract");
+        // require(journal.emitterContract == ethereumBoundlessTransceiver, "Invalid emitter contract");
 
         // parse the encoded Transceiver payload
         TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage;
@@ -127,9 +112,14 @@ contract BoundlessTransceiver is Transceiver {
         (parsedTransceiverMessage, parsedNttManagerMessage) = TransceiverStructs.parseTransceiverAndNttManagerMessage(
             BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, journal.encodedMessage
         );
+        uint16 sourceChainId = toUint16(parsedTransceiverMessage.transceiverPayload);
 
-        // Validate the steel commitment against a trusted beacon block root from the blockRootOracle
-        require(blockRootOracle.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG), "Invalid commitment");
+        // Validate the steel commitment against a trusted beacon block root from the commitment validator for the source chain
+        ICommitmentValidator validator = commitmentValidators[sourceChainId];
+        if (address(validator) == address(0)) {
+            revert("Unsupported source chain");
+        }
+        require(commitmentValidators[sourceChainId].validateCommitment(journal.commitment, TWO_OF_TWO_FLAG), "Invalid commitment");
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
@@ -143,5 +133,22 @@ contract BoundlessTransceiver is Transceiver {
             toWormholeFormat(nttManager),
             parsedNttManagerMessage
         );
+    }
+
+    /// @notice Sets the commitment validator for a given Wormhole chain ID
+    /// @param chainId The Wormhole chain ID
+    /// @param validator The commitment validator contract to use for that chain
+    /// @dev TODO: Only callable by an account with the ADMIN_ROLE
+    function setCommitmentValidator(uint16 chainId, ICommitmentValidator validator) external {
+        commitmentValidators[chainId] = validator;
+    }
+
+    function toUint16(bytes memory b) internal pure returns (uint16) {
+        require(b.length >= 2, "Too short");
+        uint16 x;
+        assembly {
+            x := shr(240, mload(add(b, 32)))
+        }
+        return x;
     }
 }

@@ -9,12 +9,13 @@ import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { Beacon } from "./lib/Beacon.sol";
 import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { ICommitmentValidator } from "./interfaces/ICommitmentValidator.sol";
 
 uint16 constant BOUNDLESS_FLAG = 0;
 uint16 constant WORMHOLE_FLAG = 1;
 uint16 constant TWO_OF_TWO_FLAG = uint16((1 << BOUNDLESS_FLAG) | (1 << WORMHOLE_FLAG));
 
-contract BlockRootOracle is AccessControl {
+contract BlockRootOracle is AccessControl, ICommitmentValidator {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 constant UNDEFINED_ROOT = bytes32(0);
 

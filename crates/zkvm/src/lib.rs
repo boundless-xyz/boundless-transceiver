@@ -7,7 +7,7 @@ mod tests {
         dyn_abi::SolType, network::EthereumWallet, node_bindings::Anvil, primitives::Bytes,
         providers::ProviderBuilder, signers::local::PrivateKeySigner, sol,
     };
-    use common::{GuestInput, Journal};
+    use common::{from_wormhole_address, to_wormhole_address, GuestInput, Journal};
     use risc0_steel::{
         ethereum::{EthEvmEnv, ETH_MAINNET_CHAIN_SPEC},
         Event,
@@ -90,7 +90,7 @@ mod tests {
 
             let input = GuestInput {
                 commitment: evm_input,
-                contract_addr: contract.address().clone(),
+                contract_addr: to_wormhole_address(contract.address().clone()),
                 encoded_message: expected_message(),
             };
 
@@ -112,7 +112,10 @@ mod tests {
                         panic!("Test case {i}: Expected error: {expected}, but got success");
                     }
                     let journal = Journal::abi_decode(&info.journal.bytes)?;
-                    assert_eq!(journal.emitterContract, *contract.address());
+                    assert_eq!(
+                        from_wormhole_address(journal.emitterContract),
+                        *contract.address()
+                    );
                     assert_eq!(journal.encodedMessage, expected_message());
                 }
                 Err(e) => {

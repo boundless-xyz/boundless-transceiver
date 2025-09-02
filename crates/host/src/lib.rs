@@ -17,7 +17,7 @@ use alloy::rpc::types::TransactionReceipt;
 use alloy_primitives::{Address, TxHash};
 use alloy_sol_types::SolEvent;
 use anyhow::{Context, Result, ensure};
-use common::{GuestInput, IBoundlessTransceiver};
+use common::{GuestInput, IBoundlessTransceiver, to_wormhole_address};
 use risc0_steel::ethereum::ETH_MAINNET_CHAIN_SPEC;
 use risc0_steel::{
     Event, alloy::transports::http::reqwest::Url, ethereum::EthEvmEnv, host::BlockNumberOrTag,
@@ -92,7 +92,7 @@ pub async fn build_input(
 
     let input = GuestInput {
         commitment: evm_input,
-        contract_addr,
+        contract_addr: to_wormhole_address(contract_addr),
         encoded_message,
     };
 

@@ -54,8 +54,9 @@ contract BoundlessTransceiverTest is Test {
         receiver = new DummyReceiver();
 
         transceiver = new BoundlessTransceiver(
-            address(manager), address(verifier), NTT_MESSAGE_INCLUSION_ID
+            address(manager), address(verifier), NTT_MESSAGE_INCLUSION_ID, address(OWNER), address(OWNER)
         );
+        vm.prank(OWNER);
         transceiver.setCommitmentValidator(CHAIN_ID_B, receiver);
         vm.prank(OWNER);
         manager.setTransceiver(address(transceiver));

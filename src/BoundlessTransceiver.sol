@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.30;
 
+import { AccessControl, Context } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { Transceiver } from "wormhole-ntt/Transceiver/Transceiver.sol";
 import { ManagerBase } from "wormhole-ntt/NttManager/ManagerBase.sol";
+import { ContextUpgradeable } from "wormhole-ntt/libraries/external/ContextUpgradeable.sol";
 import { TransceiverStructs } from "wormhole-ntt/libraries/TransceiverStructs.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { TWO_OF_TWO_FLAG } from "./BlockRootOracle.sol";
@@ -13,7 +15,9 @@ import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.s
 /// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
 bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
 
-contract BoundlessTransceiver is Transceiver {
+contract BoundlessTransceiver is AccessControl, Transceiver {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public immutable verifier;
 
@@ -47,10 +51,15 @@ contract BoundlessTransceiver is Transceiver {
     constructor(
         address _manager,
         address _r0Verifier,
-        bytes32 _imageID
+        bytes32 _imageID,
+        address admin,
+        address superAdmin
     )
         Transceiver(_manager)
     {
+        _grantRole(ADMIN_ROLE, admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, superAdmin);
+
         verifier = IRiscZeroVerifier(_r0Verifier);
         imageID = _imageID;
     }
@@ -138,8 +147,8 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Sets the commitment validator for a given Wormhole chain ID
     /// @param chainId The Wormhole chain ID
     /// @param validator The commitment validator contract to use for that chain
-    /// @dev TODO: Only callable by an account with the ADMIN_ROLE
-    function setCommitmentValidator(uint16 chainId, ICommitmentValidator validator) external {
+    /// @dev Only callable by an account with the ADMIN_ROLE
+    function setCommitmentValidator(uint16 chainId, ICommitmentValidator validator) external onlyRole(ADMIN_ROLE) {
         commitmentValidators[chainId] = validator;
     }
 
@@ -150,5 +159,18 @@ contract BoundlessTransceiver is Transceiver {
             x := shr(240, mload(add(b, 32)))
         }
         return x;
+    }
+
+    // Overrides needed to fix inheritance linearization with OpenZeppelin AccessControl and Transceiver
+    function _msgSender() internal view override(Context, ContextUpgradeable) returns (address) {
+        return super._msgSender();
+    }
+
+    function _msgData() internal view override(Context, ContextUpgradeable) returns (bytes calldata) {
+        return super._msgData();
+    }
+
+    function _contextSuffixLength() internal view override(Context, ContextUpgradeable) returns (uint256) {
+        return super._contextSuffixLength();
     }
 }

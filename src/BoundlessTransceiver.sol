@@ -21,9 +21,18 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public immutable verifier;
 
+    /// @notice Struct representing a record of a supported source chain that this
+    /// @notice transceiver knows how to validate commitments and event inclusions from
+    struct AuthorizedSource {
+        /// Wormhole formatted address of the transceiver contract on the source chain (that emits the messages)
+        bytes32 transceiverContract;
+        /// Contract on this chain that can validate Steel commitments from the source chain
+        ICommitmentValidator commitmentValidator;
+    }
+
     /// @notice Map from [Wormhole chain ID](https://wormhole.com/docs/products/reference/chain-ids/)
     /// @notice to contract that will be used to verify the Steel commitments from the foreign chain.
-    mapping(uint16 => ICommitmentValidator) public commitmentValidators;
+    mapping(uint16 => AuthorizedSource) public authorizedSources;
 
     /// @notice The image ID of the Risc0 program used for event inclusion proofs.
     bytes32 public immutable imageID;
@@ -35,8 +44,8 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
         Steel.Commitment commitment;
         // The encoded TransceiverMessage that this proof commits to
         bytes encodedMessage;
-        // The contract that emitted the message event
-        address emitterContract;
+        // Wormhole formatted address of the contract that emitted the message event
+        bytes32 emitterContract;
     }
 
     /// @notice Emitted when a message is sent from this transceiver.
@@ -112,9 +121,6 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
     function receiveMessage(bytes calldata journalData, bytes calldata seal) external {
         Journal memory journal = abi.decode(journalData, (Journal));
 
-        // Ensure the message came from the expected contract
-        // require(journal.emitterContract == ethereumBoundlessTransceiver, "Invalid emitter contract");
-
         // parse the encoded Transceiver payload
         TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage;
         TransceiverStructs.NttManagerMessage memory parsedNttManagerMessage;
@@ -123,12 +129,15 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
         );
         uint16 sourceChainId = toUint16(parsedTransceiverMessage.transceiverPayload);
 
-        // Validate the steel commitment against a trusted beacon block root from the commitment validator for the source chain
-        ICommitmentValidator validator = commitmentValidators[sourceChainId];
-        if (address(validator) == address(0)) {
-            revert("Unsupported source chain");
-        }
-        require(commitmentValidators[sourceChainId].validateCommitment(journal.commitment, TWO_OF_TWO_FLAG), "Invalid commitment");
+        // Validate the source chain against authorized sources and the journal
+        AuthorizedSource storage source = authorizedSources[sourceChainId];
+        require(address(source.commitmentValidator) != address(0), "Unsupported source chain");
+        require(source.transceiverContract == journal.emitterContract, "Invalid emitter contract");
+        // valdate steel commitment against a trusted beacon block root from the commitment validator for the source
+        // chain
+        require(
+            source.commitmentValidator.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG), "Invalid commitment"
+        );
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
@@ -144,12 +153,20 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
         );
     }
 
-    /// @notice Sets the commitment validator for a given Wormhole chain ID
+    /// @notice Sets the commitment validator and source chain transceiverContract for a given Wormhole chain ID
     /// @param chainId The Wormhole chain ID
     /// @param validator The commitment validator contract to use for that chain
     /// @dev Only callable by an account with the ADMIN_ROLE
-    function setCommitmentValidator(uint16 chainId, ICommitmentValidator validator) external onlyRole(ADMIN_ROLE) {
-        commitmentValidators[chainId] = validator;
+    function setAuthorizedSource(
+        uint16 chainId,
+        bytes32 transceiverContract,
+        ICommitmentValidator validator
+    )
+        external
+        onlyRole(ADMIN_ROLE)
+    {
+        authorizedSources[chainId] =
+            AuthorizedSource({ transceiverContract: transceiverContract, commitmentValidator: validator });
     }
 
     function toUint16(bytes memory b) internal pure returns (uint16) {

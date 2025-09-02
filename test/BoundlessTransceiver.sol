@@ -57,7 +57,7 @@ contract BoundlessTransceiverTest is Test {
             address(manager), address(verifier), NTT_MESSAGE_INCLUSION_ID, address(OWNER), address(OWNER)
         );
         vm.prank(OWNER);
-        transceiver.setCommitmentValidator(CHAIN_ID_B, receiver);
+        transceiver.setAuthorizedSource(CHAIN_ID_B, bytes32(0), receiver);
         vm.prank(OWNER);
         manager.setTransceiver(address(transceiver));
     }
@@ -150,7 +150,7 @@ contract BoundlessTransceiverTest is Test {
             BoundlessTransceiver.Journal({
                 commitment: Steel.Commitment(Encoding.encodeVersionedID(consensusSlot, 2), blockRoot, bytes32(0x0)),
                 encodedMessage: encodedTransceiverMessage,
-                emitterContract: address(0)
+                emitterContract: bytes32(0)
             })
         );
 
@@ -202,7 +202,7 @@ contract BoundlessTransceiverTest is Test {
             BoundlessTransceiver.Journal({
                 commitment: Steel.Commitment(Encoding.encodeVersionedID(consensusSlot, 2), blockRoot, bytes32(0x0)),
                 encodedMessage: encodedTransceiverMessage,
-                emitterContract: address(0)
+                emitterContract: bytes32(0)
             })
         );
 

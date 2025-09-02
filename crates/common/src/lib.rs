@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::{Address, B256, Bytes};
 use alloy_sol_types::sol;
 use risc0_steel::{Commitment, ethereum::EthEvmInput};
 
@@ -20,7 +20,7 @@ use risc0_steel::{Commitment, ethereum::EthEvmInput};
 pub struct GuestInput {
     pub commitment: EthEvmInput,
     pub encoded_message: Bytes,
-    pub contract_addr: Address,
+    pub contract_addr: B256,
 }
 
 impl GuestInput {
@@ -55,6 +55,22 @@ sol! {
         bytes encodedMessage;
 
         // The contract that emitted the message event
-        address emitterContract;
+        bytes32 emitterContract;
     }
+}
+
+/// Converts a Wormhole format B256 address to an Ethereum Address.
+pub fn from_wormhole_address(wormhole_addr: B256) -> Address {
+    // Extract the last 20 bytes from the 32-byte B256
+    // This reverses the Solidity conversion: bytes32(uint256(uint160(address)))
+    let bytes = wormhole_addr.as_slice();
+    let addr_bytes = &bytes[12..]; // Skip first 12 bytes, take last 20
+    Address::from_slice(addr_bytes)
+}
+
+/// Converts a Ethereum Address to a Wormhole format address
+pub fn to_wormhole_address(address: Address) -> B256 {
+    let mut bytes = [0u8; 32];
+    bytes[12..].copy_from_slice(address.as_slice());
+    B256::from(bytes)
 }

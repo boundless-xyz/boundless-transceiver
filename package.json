@@ -8,9 +8,10 @@
 	},
 	"dependencies": {
 		"@openzeppelin/contracts": "^4.8.1",
+		"@openzeppelin/contracts-upgradeable": "^4.8.1",
 		"@risc0/ethereum": "github:risc0/risc0-ethereum#v2.2.0",
 		"wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0",
-    "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#f106797359ba4a6743b9b4eeb06ee5415780df86"
+		"wormhole-ntt": "github:wormhole-foundation/native-token-transfers#f106797359ba4a6743b9b4eeb06ee5415780df86"
 	},
 	"devDependencies": {
 		"forge-std": "github:foundry-rs/forge-std#v1.9.7",

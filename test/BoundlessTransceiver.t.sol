@@ -19,7 +19,6 @@ import { DummyReceiver } from "./mocks/DummyReceiver.sol";
 
 import "forge-std/console.sol";
 import "forge-std/Test.sol";
-import "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract BoundlessTransceiverTest is Test {
     address constant OWNER = address(1004);

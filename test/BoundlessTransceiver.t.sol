@@ -55,10 +55,9 @@ contract BoundlessTransceiverTest is Test {
         manager.initialize();
         BoundlessTransceiver implementation = new BoundlessTransceiver(address(manager));
 
-        bytes memory initializer =
-            abi.encodeCall(BoundlessTransceiver.initialize, (address(verifier), NTT_MESSAGE_INCLUSION_ID));
+        bytes memory initializer = abi.encodeCall(BoundlessTransceiver.initialize, (address(verifier)));
         transceiver = BoundlessTransceiver(address(new ERC1967Proxy(address(implementation), initializer)));
-        transceiver.setAuthorizedSource(CHAIN_ID_B, bytes32(0), receiver);
+        transceiver.setAuthorizedSource(CHAIN_ID_B, bytes32(0), address(receiver), NTT_MESSAGE_INCLUSION_ID);
         manager.setTransceiver(address(transceiver));
         vm.stopPrank();
     }

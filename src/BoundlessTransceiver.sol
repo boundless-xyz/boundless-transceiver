@@ -27,15 +27,14 @@ contract BoundlessTransceiver is Transceiver {
         /// Wormhole formatted address of the transceiver contract on the source chain (that emits the messages)
         bytes32 transceiverContract;
         /// Contract on this chain that can validate Steel commitments from the source chain
-        ICommitmentValidator commitmentValidator;
+        address commitmentValidator;
+        /// Image ID associated with the trusted source chain
+        bytes32 imageID;
     }
 
     /// @notice Map from [Wormhole chain ID](https://wormhole.com/docs/products/reference/chain-ids/)
     /// @notice to contract that will be used to verify the Steel commitments from the foreign chain.
     mapping(uint16 => AuthorizedSource) public authorizedSources;
-
-    /// @notice The image ID of the Risc0 program used for event inclusion proofs.
-    bytes32 public imageID;
 
     /// @notice Journal that is committed to by the guest.
     struct Journal {
@@ -61,11 +60,9 @@ contract BoundlessTransceiver is Transceiver {
 
     /// @notice Initializes a new BoundlessTransceiver.
     /// @param verifier_ The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
-    /// @param imageID_ The image ID of the Risc0 program used for event inclusion proofs
-    function initialize(address verifier_, bytes32 imageID_) external initializer {
+    function initialize(address verifier_) external initializer {
         super._initialize();
         verifier = IRiscZeroVerifier(verifier_);
-        imageID = imageID_;
     }
 
     function getTransceiverType() external view virtual override returns (string memory) {
@@ -126,19 +123,19 @@ contract BoundlessTransceiver is Transceiver {
 
         // Validate the source chain against authorized sources and the journal
         AuthorizedSource storage source = authorizedSources[sourceChainId];
-        if (address(source.commitmentValidator) == address(0)) {
+        if (source.commitmentValidator == address(0)) {
             revert UnsupportedSourceChain(sourceChainId);
         }
         require(source.transceiverContract == journal.emitterContract, "Invalid emitter contract");
         // valdate steel commitment against a trusted beacon block root from the commitment validator for the source
         // chain
-        if (!source.commitmentValidator.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG)) {
+        if (!ICommitmentValidator(source.commitmentValidator).validateCommitment(journal.commitment, TWO_OF_TWO_FLAG)) {
             revert InvalidCommitment();
         }
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
-        verifier.verify(seal, imageID, journalHash);
+        verifier.verify(seal, source.imageID, journalHash);
 
         // If all prior checks have passed we can trust the ZK proof of an event emitted on the source chain
         // was included and then finalized by the chain. It can be passed to the NTT Manager.
@@ -153,17 +150,21 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Sets the commitment validator and source chain transceiverContract for a given Wormhole chain ID
     /// @param chainId The Wormhole chain ID
     /// @param validator The commitment validator contract to use for that chain
-    /// @dev Only callable by an account with the ADMIN_ROLE
+    /// @dev Only callable by the contract owner
     function setAuthorizedSource(
         uint16 chainId,
         bytes32 transceiverContract,
-        ICommitmentValidator validator
+        address validator,
+        bytes32 imageID
     )
         external
         onlyOwner
     {
-        authorizedSources[chainId] =
-            AuthorizedSource({ transceiverContract: transceiverContract, commitmentValidator: validator });
+        authorizedSources[chainId] = AuthorizedSource({
+            transceiverContract: transceiverContract,
+            commitmentValidator: validator,
+            imageID: imageID
+        });
     }
 
     function toUint16(bytes memory b) internal pure returns (uint16) {

@@ -16,7 +16,6 @@ import { Steel, Encoding as SteelEncoding } from "@steel/contracts/Steel.sol";
 bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
 
 contract BoundlessTransceiver is Transceiver {
-
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public verifier;
 

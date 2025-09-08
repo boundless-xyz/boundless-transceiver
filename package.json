@@ -1,6 +1,7 @@
 {
 	"name": "@boundless/receiver",
 	"description": "Wormhole NTT Transceiver contract and ZKVM guest for integration with The Signal: Ethereum by Boundless",
+  "license": "Apache-2.0",
 	"version": "0.1.0",
 	"author": {
 		"name": "Boundless Network",
@@ -9,7 +10,8 @@
 	"dependencies": {
 		"@openzeppelin/contracts": "^4.8.1",
 		"@openzeppelin/contracts-upgradeable": "^4.8.1",
-		"@risc0/ethereum": "github:risc0/risc0-ethereum#v2.2.0",
+		"@risc0/ethereum": "github:risc0/risc0-ethereum#v3.0.0",
+    "@boundless/steel": "github:boundless-xyz/steel#v2.4.0",
 		"wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0",
 		"wormhole-ntt": "github:wormhole-foundation/native-token-transfers#f106797359ba4a6743b9b4eeb06ee5415780df86"
 	},

@@ -38,7 +38,7 @@ fn main() {
         "Event for given message not contained in logs for this block",
     );
 
-    // Commit to this message as being from the NTT manager contract in the block committed to by the env commitment
+    // Commit to this message as being emitted by the transceiver contract in the block committed to by the env commitment
     let journal = Journal {
         commitment: env.into_commitment(),
         encodedMessage: input.encoded_message,

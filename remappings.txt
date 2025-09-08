@@ -2,6 +2,7 @@
 @openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
 openzeppelin-contracts/=node_modules/@openzeppelin/
 @risc0/contracts/=node_modules/@risc0/ethereum/contracts/src/
+@steel/contracts/=node_modules/@boundless/steel/contracts/src/
 forge-std/=node_modules/forge-std/src/
 wormhole-solidity-sdk/=node_modules/wormhole-sdk/src/
 wormhole-ntt/=node_modules/wormhole-ntt/evm/src/

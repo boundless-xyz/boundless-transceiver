@@ -7,7 +7,7 @@ import { ConsensusState, Checkpoint } from "./tseth.sol";
 import { IWormhole } from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { Beacon } from "./lib/Beacon.sol";
-import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
+import { Steel, Encoding as SteelEncoding } from "@steel/contracts/Steel.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { ICommitmentValidator } from "./interfaces/ICommitmentValidator.sol";
 
@@ -290,7 +290,7 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     {
         (uint240 blockId, uint16 version) = SteelEncoding.decodeVersionedID(commitment.id);
         if (version != 2) {
-            revert Steel.InvalidCommitmentVersion();
+            revert Steel.InvalidCommitmentVersion(version);
         }
 
         return validateReceiverCommitment(SafeCast.toUint64(blockId), commitment.digest, confirmationLevel);

@@ -3,7 +3,7 @@
 pragma solidity >=0.8.8 <0.9.0;
 
 import { ICommitmentValidator } from "../../src/interfaces/ICommitmentValidator.sol";
-import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
+import { Steel, Encoding as SteelEncoding } from "@steel/contracts/Steel.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract DummyReceiver is ICommitmentValidator {
@@ -32,7 +32,7 @@ contract DummyReceiver is ICommitmentValidator {
     {
         (uint240 blockID, uint16 version) = SteelEncoding.decodeVersionedID(commitment.id);
         if (version != 2) {
-            revert Steel.InvalidCommitmentVersion();
+            revert Steel.InvalidCommitmentVersion(version);
         }
 
         return validateReceiverCommitment(SafeCast.toUint64(blockID), commitment.digest, confirmationLevel);

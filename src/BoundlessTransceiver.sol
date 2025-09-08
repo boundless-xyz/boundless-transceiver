@@ -10,7 +10,7 @@ import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { TWO_OF_TWO_FLAG } from "./BlockRootOracle.sol";
 import { ICommitmentValidator } from "./interfaces/ICommitmentValidator.sol";
 import { IRiscZeroVerifier } from "./interfaces/IRiscZeroVerifier.sol";
-import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
+import { Steel, Encoding as SteelEncoding } from "@steel/contracts/Steel.sol";
 
 /// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
 bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;

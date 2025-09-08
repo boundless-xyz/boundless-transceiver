@@ -10,7 +10,7 @@ import { IManagerBase } from "wormhole-ntt/interfaces/IManagerBase.sol";
 import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Receipt as RiscZeroReceipt } from "@risc0/contracts/IRiscZeroVerifier.sol";
 import { RiscZeroMockVerifier } from "@risc0/contracts/test/RiscZeroMockVerifier.sol";
-import { Steel, Encoding } from "@risc0/contracts/steel/Steel.sol";
+import { Steel, Encoding } from "@steel/contracts/Steel.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 

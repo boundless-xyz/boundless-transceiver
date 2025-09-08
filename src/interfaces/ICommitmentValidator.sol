@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import { Steel } from "@risc0/contracts/steel/Steel.sol";
+import { Steel } from "@steel/contracts/Steel.sol";
 
 interface ICommitmentValidator {
     // @notice Validates a Steel commitment. Only supports v2 commitments which identify the beacon block root by its

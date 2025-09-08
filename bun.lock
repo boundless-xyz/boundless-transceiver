@@ -4,9 +4,10 @@
     "": {
       "name": "@prb/foundry-template",
       "dependencies": {
+        "@boundless/steel": "github:boundless-xyz/steel#v2.4.0",
         "@openzeppelin/contracts": "^4.8.1",
         "@openzeppelin/contracts-upgradeable": "^4.8.1",
-        "@risc0/ethereum": "github:risc0/risc0-ethereum#v2.2.0",
+        "@risc0/ethereum": "github:risc0/risc0-ethereum#v3.0.0",
         "wormhole-ntt": "github:wormhole-foundation/native-token-transfers#f106797359ba4a6743b9b4eeb06ee5415780df86",
         "wormhole-sdk": "github:wormhole-foundation/wormhole-solidity-sdk#v0.1.0",
       },
@@ -23,11 +24,13 @@
 
     "@babel/highlight": ["@babel/highlight@7.23.4", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.22.20", "chalk": "^2.4.2", "js-tokens": "^4.0.0" } }, "sha512-acGdbYSfp2WheJoJm/EBBBLh/ID8KDc64ISZ9DYtBmC8/Q204PZJLHyzeB5qMzJ5trcOkybd78M4x2KWsUq++A=="],
 
+    "@boundless/steel": ["steel@github:boundless-xyz/steel#e3d98e3", {}, "boundless-xyz-steel-e3d98e3"],
+
     "@openzeppelin/contracts": ["@openzeppelin/contracts@4.9.6", "", {}, "sha512-xSmezSupL+y9VkHZJGDoCBpmnB2ogM13ccaYDWqJTfS3dbuHkgjuwDFUmaFauBCboQMGB/S5UqUl2y54X99BmA=="],
 
     "@openzeppelin/contracts-upgradeable": ["@openzeppelin/contracts-upgradeable@4.9.6", "", {}, "sha512-m4iHazOsOCv1DgM7eD7GupTJ+NFVujRZt1wzddDPSVGpWdKq1SKkla5htKG7+IS4d2XOCtzkUNwRZ7Vq5aEUMA=="],
 
-    "@risc0/ethereum": ["risc0-ethereum@github:risc0/risc0-ethereum#382d76a", {}, "risc0-risc0-ethereum-382d76a"],
+    "@risc0/ethereum": ["risc0-ethereum@github:risc0/risc0-ethereum#32aa0b6", {}, "risc0-risc0-ethereum-32aa0b6"],
 
     "@solidity-parser/parser": ["@solidity-parser/parser@0.16.2", "", { "dependencies": { "antlr4ts": "^0.5.0-alpha.4" } }, "sha512-PI9NfoA3P8XK2VBkK5oIfRgKDsicwDZfkVq9ZTBCQYGOP1N2owgY2dyLGyU5/J/hQs8KRk55kdmvTLjy3Mu3vg=="],
 

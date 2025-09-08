@@ -12,13 +12,13 @@ import { Receipt as RiscZeroReceipt } from "@risc0/contracts/IRiscZeroVerifier.s
 import { RiscZeroMockVerifier } from "@risc0/contracts/test/RiscZeroMockVerifier.sol";
 import { Steel, Encoding } from "@risc0/contracts/steel/Steel.sol";
 import { toWormholeFormat } from "wormhole-solidity-sdk/Utils.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import { DummyTokenMintAndBurn } from "./mocks/DummyToken.sol";
 import { DummyReceiver } from "./mocks/DummyReceiver.sol";
 
 import "forge-std/console.sol";
 import "forge-std/Test.sol";
-import "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract BoundlessTransceiverTest is Test {
     address constant OWNER = address(1004);
@@ -39,6 +39,7 @@ contract BoundlessTransceiverTest is Test {
     BoundlessTransceiver transceiver;
 
     function setUp() public {
+        vm.startPrank(OWNER);
         token = new DummyTokenMintAndBurn();
 
         address managerImplementation = address(
@@ -46,20 +47,19 @@ contract BoundlessTransceiverTest is Test {
                 address(token), IManagerBase.Mode.LOCKING, CHAIN_ID_A, RATE_LIMIT_DURATION, SKIP_RATE_LIMITING
             )
         );
-        manager = NttManager(address(new ERC1967Proxy(managerImplementation, "")));
-        manager.initialize();
-        manager.transferOwnership(OWNER);
 
         verifier = new RiscZeroMockVerifier(MOCK_SELECTOR);
         receiver = new DummyReceiver();
 
-        transceiver = new BoundlessTransceiver(
-            address(manager), address(verifier), NTT_MESSAGE_INCLUSION_ID, address(OWNER), address(OWNER)
-        );
-        vm.prank(OWNER);
-        transceiver.setAuthorizedSource(CHAIN_ID_B, bytes32(0), receiver);
-        vm.prank(OWNER);
+        manager = NttManager(address(new ERC1967Proxy(managerImplementation, "")));
+        manager.initialize();
+        BoundlessTransceiver implementation = new BoundlessTransceiver(address(manager));
+
+        bytes memory initializer = abi.encodeCall(BoundlessTransceiver.initialize, (address(verifier)));
+        transceiver = BoundlessTransceiver(address(new ERC1967Proxy(address(implementation), initializer)));
+        transceiver.setAuthorizedSource(CHAIN_ID_B, bytes32(0), address(receiver), NTT_MESSAGE_INCLUSION_ID);
         manager.setTransceiver(address(transceiver));
+        vm.stopPrank();
     }
 
     // Testing sending a message from CHAIN_A
@@ -154,7 +154,7 @@ contract BoundlessTransceiverTest is Test {
             })
         );
 
-        vm.expectRevert("Unsupported source chain");
+        vm.expectRevert(abi.encodeWithSelector(BoundlessTransceiver.UnsupportedSourceChain.selector, CHAIN_ID_C));
         transceiver.receiveMessage(journalBytes, bytes("dummy seal"));
     }
 
@@ -211,7 +211,7 @@ contract BoundlessTransceiverTest is Test {
         // create a mock proof
         RiscZeroReceipt memory receipt = verifier.mockProve(NTT_MESSAGE_INCLUSION_ID, sha256(journalBytes));
 
-        vm.expectRevert("Invalid commitment");
+        vm.expectRevert(BoundlessTransceiver.InvalidCommitment.selector);
         transceiver.receiveMessage(journalBytes, receipt.seal);
 
         // Set the expected block root in the dummy receiver

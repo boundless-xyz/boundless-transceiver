@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.30;
 
-import { AccessControl, Context } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { Transceiver } from "wormhole-ntt/Transceiver/Transceiver.sol";
 import { ManagerBase } from "wormhole-ntt/NttManager/ManagerBase.sol";
 import { ContextUpgradeable } from "wormhole-ntt/libraries/external/ContextUpgradeable.sol";
@@ -15,11 +15,11 @@ import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.s
 /// @dev Prefix for all TransceiverMessage payloads bytes4(keccak256("BoundlessTransceiverPayload"))
 bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
 
-contract BoundlessTransceiver is AccessControl, Transceiver {
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+contract BoundlessTransceiver is Transceiver {
+    // bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
-    IRiscZeroVerifier public immutable verifier;
+    IRiscZeroVerifier public verifier;
 
     /// @notice Struct representing a record of a supported source chain that this
     /// @notice transceiver knows how to validate commitments and event inclusions from
@@ -27,15 +27,14 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
         /// Wormhole formatted address of the transceiver contract on the source chain (that emits the messages)
         bytes32 transceiverContract;
         /// Contract on this chain that can validate Steel commitments from the source chain
-        ICommitmentValidator commitmentValidator;
+        address commitmentValidator;
+        /// Image ID associated with the trusted source chain
+        bytes32 imageID;
     }
 
     /// @notice Map from [Wormhole chain ID](https://wormhole.com/docs/products/reference/chain-ids/)
     /// @notice to contract that will be used to verify the Steel commitments from the foreign chain.
     mapping(uint16 => AuthorizedSource) public authorizedSources;
-
-    /// @notice The image ID of the Risc0 program used for event inclusion proofs.
-    bytes32 public immutable imageID;
 
     /// @notice Journal that is committed to by the guest.
     struct Journal {
@@ -53,24 +52,17 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
     /// @param encodedMessage The encoded TransceiverMessage.
     event SendTransceiverMessage(uint16 indexed recipientChain, bytes encodedMessage);
 
-    /// @notice Constructs a new BoundlessTransceiver.
-    /// @param _manager The address of the NTT Manager contract
-    /// @param _r0Verifier The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
-    /// @param _imageID The image ID of the Risc0 program used for event inclusion proofs
-    constructor(
-        address _manager,
-        address _r0Verifier,
-        bytes32 _imageID,
-        address admin,
-        address superAdmin
-    )
-        Transceiver(_manager)
-    {
-        _grantRole(ADMIN_ROLE, admin);
-        _grantRole(DEFAULT_ADMIN_ROLE, superAdmin);
+    error UnsupportedSourceChain(uint256 chainId);
+    error InvalidCommitment();
+    error InvalidEmitter();
 
-        verifier = IRiscZeroVerifier(_r0Verifier);
-        imageID = _imageID;
+    constructor(address manager) Transceiver(manager) { }
+
+    /// @notice Initializes a new BoundlessTransceiver.
+    /// @param verifier_ The address of the Risc0 verifier deployment on this chain (ideally Risc0VerifierRouter)
+    function initialize(address verifier_) external initializer {
+        super._initialize();
+        verifier = IRiscZeroVerifier(verifier_);
     }
 
     function getTransceiverType() external view virtual override returns (string memory) {
@@ -131,17 +123,19 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
 
         // Validate the source chain against authorized sources and the journal
         AuthorizedSource storage source = authorizedSources[sourceChainId];
-        require(address(source.commitmentValidator) != address(0), "Unsupported source chain");
+        if (source.commitmentValidator == address(0)) {
+            revert UnsupportedSourceChain(sourceChainId);
+        }
         require(source.transceiverContract == journal.emitterContract, "Invalid emitter contract");
         // valdate steel commitment against a trusted beacon block root from the commitment validator for the source
         // chain
-        require(
-            source.commitmentValidator.validateCommitment(journal.commitment, TWO_OF_TWO_FLAG), "Invalid commitment"
-        );
+        if (!ICommitmentValidator(source.commitmentValidator).validateCommitment(journal.commitment, TWO_OF_TWO_FLAG)) {
+            revert InvalidCommitment();
+        }
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
-        verifier.verify(seal, imageID, journalHash);
+        verifier.verify(seal, source.imageID, journalHash);
 
         // If all prior checks have passed we can trust the ZK proof of an event emitted on the source chain
         // was included and then finalized by the chain. It can be passed to the NTT Manager.
@@ -156,17 +150,21 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
     /// @notice Sets the commitment validator and source chain transceiverContract for a given Wormhole chain ID
     /// @param chainId The Wormhole chain ID
     /// @param validator The commitment validator contract to use for that chain
-    /// @dev Only callable by an account with the ADMIN_ROLE
+    /// @dev Only callable by the contract owner
     function setAuthorizedSource(
         uint16 chainId,
         bytes32 transceiverContract,
-        ICommitmentValidator validator
+        address validator,
+        bytes32 imageID
     )
         external
-        onlyRole(ADMIN_ROLE)
+        onlyOwner
     {
-        authorizedSources[chainId] =
-            AuthorizedSource({ transceiverContract: transceiverContract, commitmentValidator: validator });
+        authorizedSources[chainId] = AuthorizedSource({
+            transceiverContract: transceiverContract,
+            commitmentValidator: validator,
+            imageID: imageID
+        });
     }
 
     function toUint16(bytes memory b) internal pure returns (uint16) {
@@ -178,16 +176,15 @@ contract BoundlessTransceiver is AccessControl, Transceiver {
         return x;
     }
 
-    // Overrides needed to fix inheritance linearization with OpenZeppelin AccessControl and Transceiver
-    function _msgSender() internal view override(Context, ContextUpgradeable) returns (address) {
+    function _msgSender() internal view override(ContextUpgradeable) returns (address) {
         return super._msgSender();
     }
 
-    function _msgData() internal view override(Context, ContextUpgradeable) returns (bytes calldata) {
+    function _msgData() internal view override(ContextUpgradeable) returns (bytes calldata) {
         return super._msgData();
     }
 
-    function _contextSuffixLength() internal view override(Context, ContextUpgradeable) returns (uint256) {
+    function _contextSuffixLength() internal view override(ContextUpgradeable) returns (uint256) {
         return super._contextSuffixLength();
     }
 }

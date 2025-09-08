@@ -1,34 +1,12 @@
-# Block Root Oracle Project
-
-## Implementation Plan
-
-- [x] Set up relevant structs for the checkpoints, validation process, and journal
-- [x] Set up admin role with RBAC configuration
-- [x] Constructor configuration for (1) initial checkpoint to verify from, (2) allowed time span since last transition, (3) trusted R0 verifier address, (4) ImageID
-- [x] Verification function using the R0 verifier, ImageID, journal and seal.
-- [x] Testing of admin functions
-- [x] Testing of Verification/transition function
-- [x] Integration of Wormhole
-- [x] Testing of Wormhole VAA
-- [x] Testing of Confirmation logic between Wormhole and RZ
-- [x] Testing BeaconEmitter
-- [x] Testing End-to-end from BeaconEmitter to Prover
-- [x] Interface and documentation
-- [x] Rename BoundlessReceiver references to `BlockRootOracle` in lieu of the incoming BoundlessTransceiver
-- [x] Complete documentation updates for all contracts
-
-### References
-
-- <https://hackmd.io/QSDlFbuKToScQ43jISuvFA>
-- Signal ZKVM Guest program: <https://github.com/boundless-xyz/Signal-Ethereum>
-- Proofs: <https://signal-proofs-v1-20250710153907748200000003.s3.us-west-2.amazonaws.com/v1/epoch/378541.json>
+# Boundless Transceiver Project
 
 ## Overview
 
-The Block Root Oracle Project provides a secure system for managing and validating Ethereum beacon chain block roots with dual confirmation from both RISC Zero zero-knowledge proofs and Wormhole cross-chain messaging.
+The Boundless Transceiver Project provides a secure system for cross-chain messaging with cryptographic proof of inclusion in the Ethereum beacon chain. It combines RISC Zero zero-knowledge proofs with Wormhole cross-chain messaging to ensure message authenticity and integrity.
 
 Key components:
 
+- **BoundlessTransceiver.sol**: The main transceiver contract that sends and receives messages with ZK proof verification
 - **BlockRootOracle.sol**: Main contract that manages beacon block roots with dual confirmation system
 - **BeaconEmitter.sol**: Contract that emits beacon block roots via Wormhole messaging
 - **Beacon.sol**: Library for interacting with Ethereum beacon chain data and block roots
@@ -40,6 +18,39 @@ This project uses:
 - [Bun](https://bun.sh/): Modern package management (instead of git submodules)
 - [Forge Std](https://github.com/foundry-rs/forge-std): Testing utilities and helpful contracts
 - [Solhint](https://github.com/protofire/solhint): Solidity linting
+
+## Architecture
+
+The system consists of two main parts:
+
+1. **Block Root Oracle System**: Maintains and validates Ethereum beacon chain block roots with dual confirmation from both RISC Zero ZK proofs and Wormhole attestations.
+
+2. **Boundless Transceiver**: Implements a Wormhole NTT (Native Token Transfer) transceiver that uses ZK proofs to validate message inclusion in the source chain's beacon chain before delivery.
+
+### Boundless Transceiver Workflow
+
+1. **Sending Messages**:
+
+   - Messages are sent from an NTT Manager through the BoundlessTransceiver
+   - The transceiver emits a `SendTransceiverMessage` event that includes the encoded message
+   - Relayers listen for this event to build ZK proofs of message inclusion
+
+2. **Receiving Messages**:
+   - Relayers generate ZK proofs of message inclusion in the source chain's beacon chain
+   - The proof (journalData + seal) is submitted to the destination chain's BoundlessTransceiver
+   - The transceiver validates:
+     - The source chain is authorized
+     - The commitment is valid using the commitment validator
+     - The ZK proof is valid using the RISC Zero verifier
+   - If all validations pass, the message is delivered to the destination NTT Manager
+
+### Block Root Oracle System
+
+The BlockRootOracle maintains a secure record of Ethereum beacon chain block roots with dual confirmation:
+
+1. **RISC Zero Proofs**: State transitions are validated using ZK proofs from the Signal-Ethereum guest program
+2. **Wormhole Attestations**: Beacon block roots are also confirmed via Wormhole cross-chain messages
+3. **Dual Confirmation**: Block roots require both confirmations for maximum security (TWO_OF_TWO_FLAG)
 
 ## Development
 
@@ -55,7 +66,7 @@ OpenZeppelin Contracts comes pre-installed as an example.
 
 ### Testing
 
-Write tests by importing `Test` from `forge-std`. Access cheatcodes via the `vm` property. Example test in [Foo.t.sol](./tests/Foo.t.sol).
+Write tests by importing `Test` from `forge-std`. Access cheatcodes via the `vm` property. Example test in [BoundlessTransceiver.t.sol](./test/BoundlessTransceiver.t.sol).
 
 For detailed logs, use the `-vvv` flag and [console.log](https://book.getfoundry.sh/faq?highlight=console.log#how-do-i-use-consolelog).
 
@@ -112,28 +123,26 @@ $ forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 
 
 ```text
 src/
-├── BlockRootOracle.sol          # Main contract for beacon block root management
-├── BeaconEmitter.sol            # Contract for emitting beacon roots via Wormhole
-├── tseth.sol                    # Core data structures (Checkpoint, ConsensusState)
+├── BoundlessTransceiver.sol       # Main transceiver contract for ZK-verified cross-chain messaging
+├── BlockRootOracle.sol            # Main contract for beacon block root management with dual confirmation
+├── BeaconEmitter.sol              # Contract for emitting beacon roots via Wormhole
+├── tseth.sol                      # Core data structures (Checkpoint, ConsensusState)
 ├── interfaces/
-│   └── IRiscZeroVerifier.sol    # Interface for RISC Zero verifier
+│   ├── ICommitmentValidator.sol   # Interface for commitment validation
+│   └── IRiscZeroVerifier.sol      # Interface for RISC Zero verifier
 └── lib/
-    ├── Beacon.sol               # Beacon chain utilities
-    ├── RiscZeroVerifier.sol     # RISC Zero verification structures
-    └── Util.sol                 # Utility functions
+    ├── Beacon.sol                 # Beacon chain utilities
+    ├── RiscZeroVerifier.sol       # RISC Zero verification structures
+    └── Util.sol                   # Utility functions
 ```
 
 ## Related Projects
 
-- [PaulRBerg/foundry-template](https://github.com/PaulRBerg/foundry-template)
-- [foundry-rs/forge-template](https://github.com/foundry-rs/forge-template)
-- [abigger87/femplate](https://github.com/abigger87/femplate)
-- [cleanunicorn/ethereum-smartcontract-template](https://github.com/cleanunicorn/ethereum-smartcontract-template)
-- [FrankieIsLost/forge-template](https://github.com/FrankieIsLost/forge-template)
+- [Signal ZKVM Guest program](https://github.com/boundless-xyz/Signal-Ethereum)
 
 ## License
 
-This project is licensed under MIT.
+This project is licensed under Apache-2.0.
 
 [gitpod]: https://gitpod.io/#https://github.com/ignio-labs/foundry-template
 [gitpod-badge]: https://img.shields.io/badge/Gitpod-Open%20in%20Gitpod-FFB45B?logo=gitpod

@@ -2,11 +2,11 @@
 
 pragma solidity >=0.8.8 <0.9.0;
 
-import { IBlockRootOracle } from "../../src/interfaces/IBlockRootOracle.sol";
+import { ICommitmentValidator } from "../../src/interfaces/ICommitmentValidator.sol";
 import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-contract DummyReceiver is IBlockRootOracle {
+contract DummyReceiver is ICommitmentValidator {
     mapping(uint64 slot => bytes32 blockRoot) private roots;
 
     function setBlockRoot(uint64 slot, bytes32 root) public {

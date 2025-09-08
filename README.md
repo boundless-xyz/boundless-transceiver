@@ -18,6 +18,8 @@ This project uses:
 - [Bun](https://bun.sh/): Modern package management (instead of git submodules)
 - [Forge Std](https://github.com/foundry-rs/forge-std): Testing utilities and helpful contracts
 - [Solhint](https://github.com/protofire/solhint): Solidity linting
+- [Rust + Cargo](https://www.rust-lang.org/tools/install): RISC Zero zkVM code and rust package management
+- [RISC Zero](https://dev.risczero.com/api/zkvm/install): Build tools for zkVM
 
 ## Architecture
 
@@ -86,16 +88,19 @@ GitHub Actions automatically lint and test on push/PR to `main`. Configure in [.
 ```sh
 # Build
 $ forge build
+$ cargo build
 
 # Test
 $ forge test
 $ forge test --gas-report # CLI-based gas report
 $ bun run test:coverage
 $ bun run test:coverage:report  # Requires lcov: brew install lcov
+$ cargo test
 
 # Linting & Formatting
 $ bun run lint
 $ forge fmt
+$ cargo fmt
 
 # Deployment
 $ forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 [--verify]

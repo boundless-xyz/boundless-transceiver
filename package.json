@@ -1,6 +1,7 @@
 {
 	"name": "@boundless/receiver",
 	"description": "Wormhole NTT Transceiver contract and ZKVM guest for integration with The Signal: Ethereum by Boundless",
+  "license": "Apache-2.0",
 	"version": "0.1.0",
 	"author": {
 		"name": "Boundless Network",

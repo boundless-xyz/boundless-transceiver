@@ -16,7 +16,6 @@ import { Steel, Encoding as SteelEncoding } from "@risc0/contracts/steel/Steel.s
 bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
 
 contract BoundlessTransceiver is Transceiver {
-    // bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
     IRiscZeroVerifier public verifier;
@@ -28,7 +27,7 @@ contract BoundlessTransceiver is Transceiver {
         bytes32 transceiverContract;
         /// Contract on this chain that can validate Steel commitments from the source chain
         address commitmentValidator;
-        /// Image ID associated with the trusted source chain
+        /// Image ID for the program to prove deposit events into the transceiver on this source
         bytes32 imageID;
     }
 
@@ -127,7 +126,7 @@ contract BoundlessTransceiver is Transceiver {
             revert UnsupportedSourceChain(sourceChainId);
         }
         require(source.transceiverContract == journal.emitterContract, "Invalid emitter contract");
-        // valdate steel commitment against a trusted beacon block root from the commitment validator for the source
+        // validate steel commitment against a trusted beacon block root from the commitment validator for the source
         // chain
         if (!ICommitmentValidator(source.commitmentValidator).validateCommitment(journal.commitment, TWO_OF_TWO_FLAG)) {
             revert InvalidCommitment();
@@ -174,17 +173,5 @@ contract BoundlessTransceiver is Transceiver {
             x := shr(240, mload(add(b, 32)))
         }
         return x;
-    }
-
-    function _msgSender() internal view override(ContextUpgradeable) returns (address) {
-        return super._msgSender();
-    }
-
-    function _msgData() internal view override(ContextUpgradeable) returns (bytes calldata) {
-        return super._msgData();
-    }
-
-    function _contextSuffixLength() internal view override(ContextUpgradeable) returns (uint256) {
-        return super._contextSuffixLength();
     }
 }

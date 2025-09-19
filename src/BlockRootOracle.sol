@@ -74,6 +74,7 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
 
     error InvalidArgument();
     error InvalidPreState();
+    error InvalidPostState();
     error PermissibleTimespanLapsed();
     error UnauthorizedEmitterChainId();
     error UnauthorizedEmitterAddress();
@@ -122,12 +123,9 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     /// @param seal RISC Zero cryptographic proof validating the state transition
     function transition(bytes calldata journalData, bytes calldata seal) external {
         Journal memory journal = abi.decode(journalData, (Journal));
-        if (!_compareConsensusState(currentState, journal.preState)) {
-            revert InvalidPreState();
-        }
-        if (!_permissibleTransition(journal.preState)) {
-            revert PermissibleTimespanLapsed();
-        }
+        require(_compareConsensusState(currentState, journal.preState), InvalidPreState());
+        require(_validPostState(journal.postState), InvalidPostState());
+        require(_permissibleTransition(journal.preState), PermissibleTimespanLapsed());
 
         bytes32 journalHash = sha256(journalData);
         IRiscZeroVerifier(VERIFIER).verify(seal, imageID, journalHash);
@@ -234,6 +232,15 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
         uint256 transitionTimespan =
             block.timestamp - Beacon.epochTimestamp(state.finalizedCheckpoint.epoch, BEACON_CONFIG);
         return transitionTimespan <= uint256(permissibleTimespan);
+    }
+
+    /// @notice Check if a post state is valid
+    /// @dev Ensures that the `postState.currentJustifiableCheckpoint` of the journal is set not set in the future
+    /// @param state The consensus state to check
+    /// @return Whether the `postState` is set in the past
+    function _validPostState(ConsensusState memory state) internal view returns (bool) {
+        uint256 epochTimestamp = Beacon.epochTimestamp(state.currentJustifiedCheckpoint.epoch, BEACON_CONFIG);
+        return epochTimestamp <= block.timestamp;
     }
 
     /// @notice Generates a unique hash for a checkpoint at a given slot

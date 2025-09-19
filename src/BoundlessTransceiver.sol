@@ -17,6 +17,7 @@ bytes4 constant BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX = 0x1d49a45d;
 
 contract BoundlessTransceiver is Transceiver {
     /// @notice The Risc0 verifier contract used to verify the ZK proof.
+
     IRiscZeroVerifier public verifier;
 
     /// @notice Struct representing a record of a supported source chain that this
@@ -84,7 +85,7 @@ contract BoundlessTransceiver is Transceiver {
             toWormholeFormat(caller),
             recipientNttManagerAddress,
             nttManagerMessage,
-            abi.encodePacked(ManagerBase(nttManager).chainId())
+            _encodePayload(ManagerBase(nttManager).chainId())
         );
 
         // This is the event that the relayer is listening for and will build a ZK
@@ -110,26 +111,26 @@ contract BoundlessTransceiver is Transceiver {
     /// @dev This function verifies the ZK proof, checks the commitments, then forwards the message to the NTT Manager.
     function receiveMessage(bytes calldata journalData, bytes calldata seal) external {
         Journal memory journal = abi.decode(journalData, (Journal));
-
-        // parse the encoded Transceiver payload
-        TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage;
-        TransceiverStructs.NttManagerMessage memory parsedNttManagerMessage;
-        (parsedTransceiverMessage, parsedNttManagerMessage) = TransceiverStructs.parseTransceiverAndNttManagerMessage(
+        (
+            TransceiverStructs.TransceiverMessage memory parsedTransceiverMessage,
+            TransceiverStructs.NttManagerMessage memory parsedNttManagerMessage
+        ) = TransceiverStructs.parseTransceiverAndNttManagerMessage(
             BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX, journal.encodedMessage
         );
-        uint16 sourceChainId = toUint16(parsedTransceiverMessage.transceiverPayload);
+
+        uint16 sourceChainId = _decodePayload(parsedTransceiverMessage.transceiverPayload);
 
         // Validate the source chain against authorized sources and the journal
         AuthorizedSource storage source = authorizedSources[sourceChainId];
-        if (source.commitmentValidator == address(0)) {
-            revert UnsupportedSourceChain(sourceChainId);
-        }
-        require(source.transceiverContract == journal.emitterContract, "Invalid emitter contract");
+        require(source.commitmentValidator != address(0), UnsupportedSourceChain(sourceChainId));
+        require(source.transceiverContract == journal.emitterContract, InvalidEmitter());
+
         // validate steel commitment against a trusted beacon block root from the commitment validator for the source
         // chain
-        if (!ICommitmentValidator(source.commitmentValidator).validateCommitment(journal.commitment, TWO_OF_TWO_FLAG)) {
-            revert InvalidCommitment();
-        }
+        require(
+            ICommitmentValidator(source.commitmentValidator).validateCommitment(journal.commitment, TWO_OF_TWO_FLAG),
+            InvalidCommitment()
+        );
 
         // Verify the ZK proof
         bytes32 journalHash = sha256(journalData);
@@ -165,12 +166,19 @@ contract BoundlessTransceiver is Transceiver {
         });
     }
 
-    function toUint16(bytes memory b) internal pure returns (uint16) {
-        require(b.length >= 2, "Too short");
-        uint16 x;
+    /// @notice Encodes a chain ID into a bytes payload for transceiver messages
+    /// @param chainId The chain ID to encode
+    /// @return payload The encoded chain ID as bytes
+    function _encodePayload(uint16 chainId) internal pure returns (bytes memory payload) {
+        payload = abi.encodePacked(chainId);
+    }
+
+    /// @notice Decodes a chain ID from a bytes payload
+    /// @param payload The bytes payload containing an encoded chain ID
+    /// @return chainId The decoded chain ID
+    function _decodePayload(bytes memory payload) internal pure returns (uint16 chainId) {
         assembly {
-            x := shr(240, mload(add(b, 32)))
+            chainId := shr(240, mload(add(payload, 32)))
         }
-        return x;
     }
 }

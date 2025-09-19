@@ -18,15 +18,15 @@ include!(concat!(env!("OUT_DIR"), "/methods.rs"));
 mod tests {
     use super::*;
     use alloy::{
-        dyn_abi::SolType, network::EthereumWallet, node_bindings::Anvil, primitives::Bytes,
-        providers::ProviderBuilder, signers::local::PrivateKeySigner, sol,
+        dyn_abi::SolType, network::EthereumWallet, node_bindings::Anvil, primitives::Address,
+        primitives::Bytes, providers::ProviderBuilder, signers::local::PrivateKeySigner, sol,
     };
-    use common::{GuestInput, Journal, from_wormhole_address, to_wormhole_address};
+    use common::{from_wormhole_address, to_wormhole_address, GuestInput, Journal};
     use risc0_steel::{
+        ethereum::{EthEvmEnv, ETH_MAINNET_CHAIN_SPEC},
         Event,
-        ethereum::{ETH_MAINNET_CHAIN_SPEC, EthEvmEnv},
     };
-    use risc0_zkvm::{ExecutorEnv, default_executor};
+    use risc0_zkvm::{default_executor, ExecutorEnv};
     use std::sync::LazyLock;
 
     // A minimal contract that emits a `SendTransceiverMessage` events when `emitEvent` is called.
@@ -127,7 +127,7 @@ mod tests {
                     }
                     let journal = Journal::abi_decode(&info.journal.bytes)?;
                     assert_eq!(
-                        from_wormhole_address(journal.emitterContract),
+                        from_wormhole_address(journal.emitterContract).unwrap_or(Address::ZERO),
                         *contract.address()
                     );
                     assert_eq!(journal.encodedMessage, expected_message());

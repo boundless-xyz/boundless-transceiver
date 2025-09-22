@@ -141,12 +141,8 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
         if (!valid) {
             revert(reason);
         }
-        if (vm.emitterChainId != EMITTER_CHAIN_ID) {
-            revert UnauthorizedEmitterChainId();
-        }
-        if (vm.emitterAddress != BEACON_EMITTER) {
-            revert UnauthorizedEmitterAddress();
-        }
+        require(vm.emitterChainId == EMITTER_CHAIN_ID, UnauthorizedEmitterChainId());
+        require(vm.emitterAddress == BEACON_EMITTER, UnauthorizedEmitterAddress());
 
         (uint64 slot, bytes32 root) = abi.decode(vm.payload, (uint64, bytes32));
 
@@ -175,16 +171,15 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     }
 
     function updateImageID(bytes32 newImageID) external onlyRole(ADMIN_ROLE) {
-        if (newImageID == imageID) revert InvalidArgument();
+        require(newImageID != imageID, InvalidArgument());
 
         emit ImageIDUpdated(newImageID, imageID);
         imageID = newImageID;
     }
 
     function updatePermissibleTimespan(uint24 newPermissibleTimespan) external onlyRole(ADMIN_ROLE) {
-        if (newPermissibleTimespan == permissibleTimespan) {
-            revert InvalidArgument();
-        }
+        require(newPermissibleTimespan != permissibleTimespan, InvalidArgument());
+
         permissibleTimespan = newPermissibleTimespan;
         emit PermissibleTimespanUpdated(newPermissibleTimespan);
     }
@@ -296,9 +291,7 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
         returns (bool)
     {
         (uint240 blockId, uint16 version) = SteelEncoding.decodeVersionedID(commitment.id);
-        if (version != 2) {
-            revert Steel.InvalidCommitmentVersion(version);
-        }
+        require(version == 2, Steel.InvalidCommitmentVersion(version));
 
         return validateReceiverCommitment(SafeCast.toUint64(blockId), commitment.digest, confirmationLevel);
     }

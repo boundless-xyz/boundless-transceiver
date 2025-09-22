@@ -11,7 +11,7 @@ import { Beacon } from "../src/lib/Beacon.sol";
 import { Test } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
 
-contract RiscZeroTransceiverTest is Test {
+contract BlockRootOracleTest is Test {
     uint64 constant SLOTS_PER_EPOCH = 32;
     bytes4 constant MOCK_SELECTOR = bytes4(0);
     BlockRootOracle br;

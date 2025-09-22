@@ -52,6 +52,7 @@ contract BoundlessTransceiver is Transceiver {
     event SendTransceiverMessage(uint16 indexed recipientChain, bytes encodedMessage);
 
     error UnsupportedSourceChain(uint256 chainId);
+    error RelayerUnsupported();
     error InvalidCommitment();
     error InvalidEmitter();
 
@@ -80,6 +81,8 @@ contract BoundlessTransceiver is Transceiver {
         internal
         override
     {
+        require(msg.value == 0, RelayerUnsupported());
+
         (, bytes memory encodedTransceiverPayload) = TransceiverStructs.buildAndEncodeTransceiverMessage(
             BOUNDLESS_TRANSCEIVER_PAYLOAD_PREFIX,
             toWormholeFormat(caller),

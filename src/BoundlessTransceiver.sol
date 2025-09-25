@@ -75,6 +75,11 @@ contract BoundlessTransceiver is Transceiver {
     /// @param relayerEnabled The new status of the relayer enablement.
     event UpdateRelayerEnabled(bool relayerEnabled);
 
+    /// @notice Emitted when the delivery price is updated for a chain ID.
+    /// @param chainId The Wormhole chain ID that has its delivery price updated.
+    /// @param price The price updated to for the chain ID.
+    event UpdateDeliveryPrice(uint16 indexed chainId, uint256 price);
+
     /// @notice Error thrown when a source chain is not authorized for message processing.
     /// @param chainId The unsupported chain ID.
     error UnsupportedSourceChain(uint256 chainId);
@@ -176,7 +181,7 @@ contract BoundlessTransceiver is Transceiver {
         require(source.commitmentValidator != address(0), UnsupportedSourceChain(sourceChainId));
         require(source.transceiverContract == journal.emitterContract, InvalidEmitter());
 
-        // validate steel commitment against a trusted beacon block root from the commitment validator for the source
+        // Validate steel commitment against a trusted beacon block root from the commitment validator for the source
         // chain
         require(
             ICommitmentValidator(source.commitmentValidator).validateCommitment(journal.commitment, TWO_OF_TWO_FLAG),
@@ -220,6 +225,16 @@ contract BoundlessTransceiver is Transceiver {
         });
 
         emit UpdateAuthorizedSource(chainId, transceiverContract, validator, imageID);
+    }
+
+    /// @notice Sets the quote delivery price for the target chain to the provided price.
+    /// @param chainId The Wormhole chain ID for which to set the delivery price.
+    /// @param price The amount to pay a relayer for delivering a message to chain `chainId`.
+    /// @dev Only callable by the contract owner. This function updates the delivery price for
+    /// relayers to get compensation for relaying messages to a particular chain ID.
+    function setDeliveryPrice(uint16 chainId, uint256 price) external onlyOwner {
+        deliveryPrices[chainId] = price;
+        emit UpdateDeliveryPrice(chainId, price);
     }
 
     /// @notice Sets the relayer enabled status for this transceiver.

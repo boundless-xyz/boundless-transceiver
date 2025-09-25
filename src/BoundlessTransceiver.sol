@@ -93,6 +93,9 @@ contract BoundlessTransceiver is Transceiver {
     /// @notice Error thrown when an emitter contract address doesn't match authorized sources.
     error InvalidEmitter();
 
+    /// @notice Error thrown when the decoded payload does not match the expected format.
+    error InvalidPayload(bytes payload);
+
     constructor(address manager) Transceiver(manager) { }
 
     /// @notice Initializes a new BoundlessTransceiver.
@@ -260,9 +263,14 @@ contract BoundlessTransceiver is Transceiver {
     /// @return chainId The decoded chain ID.
     /// @dev This function extracts the chain ID from the payload using inline assembly.
     /// It shifts the loaded value right by 240 bits to extract the 16-bit chain ID.
+    /// If the payload doesn't only contain the chain ID, the decode operation with revert.
     function _decodePayload(bytes memory payload) internal pure returns (uint16 chainId) {
+        uint256 rest;
         assembly {
             chainId := shr(240, mload(add(payload, 32)))
+            rest := shl(16, mload(add(payload, 32)))
         }
+
+        require(rest == 0, InvalidPayload(payload));
     }
 }

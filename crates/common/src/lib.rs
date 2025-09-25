@@ -82,7 +82,7 @@ pub fn to_wormhole_address(address: Address) -> B256 {
 }
 
 /// Converts a Wormhole format B256 address to an Ethereum Address.
-pub fn from_wormhole_address_align(wormhole_addr: B256) -> Result<Address, String> {
+fn from_wormhole_address_align(wormhole_addr: B256) -> Result<Address, String> {
     // Extract the last 20 bytes from the 32-byte B256
     // This reverses the Solidity conversion: bytes32(uint256(uint160(address)))
     let bytes = wormhole_addr.as_slice();
@@ -103,14 +103,15 @@ pub fn from_wormhole_address_align(wormhole_addr: B256) -> Result<Address, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{b256, address};
+    use alloy_primitives::{address, b256};
 
     #[test]
     fn test_from_wormhole_address_valid() {
         // Test with a valid wormhole address
-        let wormhole_addr = b256!("000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let wormhole_addr =
+            b256!("000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         let expected_addr = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        
+
         let result = from_wormhole_address(wormhole_addr).unwrap();
         assert_eq!(result, expected_addr);
     }
@@ -118,9 +119,10 @@ mod tests {
     #[test]
     fn test_from_wormhole_address_align_valid() {
         // Test with a valid wormhole address
-        let wormhole_addr = b256!("000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let wormhole_addr =
+            b256!("000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         let expected_addr = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        
+
         let result = from_wormhole_address_align(wormhole_addr).unwrap();
         assert_eq!(result, expected_addr);
     }
@@ -128,12 +130,13 @@ mod tests {
     #[test]
     fn test_both_functions_identical_result() {
         // Test that both functions produce identical results for valid inputs
-        let wormhole_addr = b256!("000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        let wormhole_addr =
+            b256!("000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         let expected_addr = address!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-        
+
         let result1 = from_wormhole_address(wormhole_addr).unwrap();
         let result2 = from_wormhole_address_align(wormhole_addr).unwrap();
-        
+
         assert_eq!(result1, result2);
         assert_eq!(result1, expected_addr);
     }
@@ -141,8 +144,9 @@ mod tests {
     #[test]
     fn test_from_wormhole_address_invalid() {
         // Test with an invalid wormhole address (non-zero prefix)
-        let wormhole_addr = b256!("000000000000000000000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        
+        let wormhole_addr =
+            b256!("000000000000000000000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
         let result = from_wormhole_address(wormhole_addr);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Malformed wormhole address");
@@ -151,8 +155,9 @@ mod tests {
     #[test]
     fn test_from_wormhole_address_align_invalid() {
         // Test with an invalid wormhole address (non-zero prefix)
-        let wormhole_addr = b256!("000000000000000000000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        
+        let wormhole_addr =
+            b256!("000000000000000000000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
         let result = from_wormhole_address_align(wormhole_addr);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Malformed wormhole address");
@@ -161,12 +166,13 @@ mod tests {
     #[test]
     fn test_zero_address() {
         // Test with zero address
-        let wormhole_addr = b256!("0000000000000000000000000000000000000000000000000000000000000000");
+        let wormhole_addr =
+            b256!("0000000000000000000000000000000000000000000000000000000000000000");
         let expected_addr = address!("0000000000000000000000000000000000000000");
-        
+
         let result1 = from_wormhole_address(wormhole_addr).unwrap();
         let result2 = from_wormhole_address_align(wormhole_addr).unwrap();
-        
+
         assert_eq!(result1, result2);
         assert_eq!(result1, expected_addr);
     }

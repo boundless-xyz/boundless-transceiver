@@ -129,7 +129,8 @@ mod tests {
                     }
                     let journal = Journal::abi_decode(&info.journal.bytes)?;
                     assert_eq!(
-                        from_wormhole_address(journal.emitterContract).unwrap_or(Address::ZERO),
+                        from_wormhole_address(journal.emitterContract)
+                            .expect("Could not parse wormhole address"),
                         *contract.address()
                     );
                     assert_eq!(journal.encodedMessage, expected_message());

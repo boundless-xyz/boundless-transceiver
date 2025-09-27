@@ -20,6 +20,16 @@ import { DummyReceiver } from "./mocks/DummyReceiver.sol";
 import "forge-std/console.sol";
 import "forge-std/Test.sol";
 
+// Test helper contract to expose internal functions for testing
+contract BoundlessTransceiverExposed is BoundlessTransceiver {
+    constructor(address manager) BoundlessTransceiver(manager) { }
+
+    // Expose the internal _decodePayload function for testing
+    function decodePayloadExternal(bytes memory payload) external pure returns (uint16) {
+        return _decodePayload(payload);
+    }
+}
+
 contract BoundlessTransceiverTest is Test {
     address constant OWNER = address(1004);
 
@@ -37,6 +47,7 @@ contract BoundlessTransceiverTest is Test {
     RiscZeroMockVerifier verifier;
     DummyReceiver receiver;
     BoundlessTransceiver transceiver;
+    BoundlessTransceiverExposed transceiverExposed;
 
     function setUp() public {
         vm.startPrank(OWNER);
@@ -54,9 +65,12 @@ contract BoundlessTransceiverTest is Test {
         manager = NttManager(address(new ERC1967Proxy(managerImplementation, "")));
         manager.initialize();
         BoundlessTransceiver implementation = new BoundlessTransceiver(address(manager));
+        BoundlessTransceiverExposed implementationExposed = new BoundlessTransceiverExposed(address(manager));
 
         bytes memory initializer = abi.encodeCall(BoundlessTransceiver.initialize, (address(verifier)));
         transceiver = BoundlessTransceiver(address(new ERC1967Proxy(address(implementation), initializer)));
+        transceiverExposed =
+            BoundlessTransceiverExposed(address(new ERC1967Proxy(address(implementationExposed), initializer)));
         transceiver.setAuthorizedSource(CHAIN_ID_B, bytes32(0), address(receiver), NTT_MESSAGE_INCLUSION_ID);
         manager.setTransceiver(address(transceiver));
         vm.stopPrank();
@@ -224,5 +238,66 @@ contract BoundlessTransceiverTest is Test {
         token.mint(address(manager), amount);
         vm.expectRevert(abi.encodeWithSignature("TransceiverAlreadyAttestedToMessage(bytes32)", nttManagerMessageHash));
         transceiver.receiveMessage(journalBytes, receipt.seal);
+    }
+
+    // Test _decodePayload function with valid inputs
+    function test_decodePayloadValid() public {
+        // Test with uint16(0)
+        uint16 chainId = 0;
+        bytes memory payload = abi.encodePacked(chainId);
+        uint16 decoded = transceiverExposed.decodePayloadExternal(payload);
+        assertEq(decoded, chainId);
+
+        // Test with uint16(1)
+        chainId = 1;
+        payload = abi.encodePacked(chainId);
+        decoded = transceiverExposed.decodePayloadExternal(payload);
+        assertEq(decoded, chainId);
+
+        // Test with uint16(333) - same as CHAIN_ID_A
+        chainId = CHAIN_ID_A;
+        payload = abi.encodePacked(chainId);
+        decoded = transceiverExposed.decodePayloadExternal(payload);
+        assertEq(decoded, chainId);
+
+        // Test with max uint16 value
+        chainId = type(uint16).max;
+        payload = abi.encodePacked(chainId);
+        decoded = transceiverExposed.decodePayloadExternal(payload);
+        assertEq(decoded, chainId);
+    }
+
+    // Test _decodePayload function with payloads that are too short
+    function test_decodePayloadTooShort() public {
+        // Test 0-byte payload
+        bytes memory payload = new bytes(0);
+        vm.expectRevert(abi.encodeWithSelector(BoundlessTransceiver.InvalidPayload.selector, payload));
+        transceiverExposed.decodePayloadExternal(payload);
+
+        // Test 1-byte payload
+        payload = new bytes(1);
+        payload[0] = 0xFF;
+        vm.expectRevert(abi.encodeWithSelector(BoundlessTransceiver.InvalidPayload.selector, payload));
+        transceiverExposed.decodePayloadExternal(payload);
+    }
+
+    // Test _decodePayload function with payloads that are too long
+    function test_decodePayloadTooLong() public {
+        // Test 3-byte payload
+        bytes memory payload = new bytes(3);
+        payload[0] = 0x01;
+        payload[1] = 0x02;
+        payload[2] = 0x03;
+        vm.expectRevert(abi.encodeWithSelector(BoundlessTransceiver.InvalidPayload.selector, payload));
+        transceiverExposed.decodePayloadExternal(payload);
+
+        // Test 4-byte payload
+        payload = new bytes(4);
+        payload[0] = 0x01;
+        payload[1] = 0x02;
+        payload[2] = 0x03;
+        payload[3] = 0x04;
+        vm.expectRevert(abi.encodeWithSelector(BoundlessTransceiver.InvalidPayload.selector, payload));
+        transceiverExposed.decodePayloadExternal(payload);
     }
 }

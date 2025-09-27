@@ -265,12 +265,10 @@ contract BoundlessTransceiver is Transceiver {
     /// It shifts the loaded value right by 240 bits to extract the 16-bit chain ID.
     /// If the payload doesn't only contain the chain ID, the decode operation with revert.
     function _decodePayload(bytes memory payload) internal pure returns (uint16 chainId) {
+        require(payload.length == 2, InvalidPayload(payload));
         uint256 rest;
         assembly {
             chainId := shr(240, mload(add(payload, 32)))
-            rest := shl(16, mload(add(payload, 32)))
         }
-
-        require(rest == 0, InvalidPayload(payload));
     }
 }

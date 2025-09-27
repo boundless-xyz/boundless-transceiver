@@ -255,7 +255,6 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     function _confirm(uint64 slot, bytes32 root, uint16 flag) internal {
         CheckpointAttestation storage attestation = attestations[_checkpointHash(slot, root)];
         attestation.confirmations = _confirm(attestation.confirmations, flag);
-        // TODO: Verify if blockroot collision is possible
         if (roots[slot] == UNDEFINED_ROOT) {
             roots[slot] = root;
         }

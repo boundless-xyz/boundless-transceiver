@@ -34,6 +34,7 @@ contract BeaconEmitter {
     }
 
     /// @notice Emits a Wormhole message containing the beacon block root for a specific slot.
+    /// @notice If `msg.value` is not the exact Wormhole fee, the call with revert.
     /// @dev Retrieves the beacon block root for the given slot using EIP-4788 and publishes
     /// it as a Wormhole message for cross-chain consumption.
     /// @param slot The beacon chain slot number to retrieve the block root for.

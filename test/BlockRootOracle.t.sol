@@ -11,7 +11,7 @@ import { Beacon } from "../src/lib/Beacon.sol";
 import { Test } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
 
-contract RiscZeroTransceiverTest is Test {
+contract BlockRootOracleTest is Test {
     uint64 constant SLOTS_PER_EPOCH = 32;
     bytes4 constant MOCK_SELECTOR = bytes4(0);
     BlockRootOracle br;
@@ -237,18 +237,37 @@ contract RiscZeroTransceiverTest is Test {
         vm.stopPrank();
     }
 
+    function test_TransitionFailsOnPostStateInFuture() public {
+        uint256 timestamp =
+            Beacon.epochTimestamp(root.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG());
+
+        BlockRootOracle.Journal memory journal_ = BlockRootOracle.Journal({
+            preState: root,
+            postState: ConsensusState({
+                currentJustifiedCheckpoint: Checkpoint({ epoch: root.finalizedCheckpoint.epoch + 1, root: bytes32(uint256(1)) }),
+                finalizedCheckpoint: Checkpoint({ epoch: root.finalizedCheckpoint.epoch + 2, root: bytes32(uint256(1)) })
+            }),
+            finalizedSlot: SLOTS_PER_EPOCH
+        });
+        RiscZeroReceipt memory receipt = verifier.mockProve(imageID, sha256(abi.encode(journal_)));
+
+        vm.warp(timestamp);
+
+        vm.startPrank(admin);
+        vm.expectRevert(BlockRootOracle.InvalidPostState.selector);
+        br.transition(abi.encode(journal_), receipt.seal);
+        vm.stopPrank();
+    }
+
     function test_TransitionFailsOnImpermissibleSpan() public {
         BlockRootOracle.Journal memory journal_ = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
                 currentJustifiedCheckpoint: Checkpoint({
-                    epoch: root.currentJustifiedCheckpoint.epoch + permissibleTimespan + 1,
+                    epoch: root.currentJustifiedCheckpoint.epoch + 1,
                     root: bytes32(uint256(1))
                 }),
-                finalizedCheckpoint: Checkpoint({
-                    epoch: root.finalizedCheckpoint.epoch + permissibleTimespan + 1,
-                    root: bytes32(uint256(1))
-                })
+                finalizedCheckpoint: Checkpoint({ epoch: root.finalizedCheckpoint.epoch + 10, root: bytes32(uint256(1)) })
             }),
             finalizedSlot: SLOTS_PER_EPOCH
         });
@@ -256,11 +275,11 @@ contract RiscZeroTransceiverTest is Test {
 
         vm.warp(
             Beacon.epochTimestamp(journal_.preState.finalizedCheckpoint.epoch, Beacon.ETHEREUM_MAINNET_BEACON_CONFIG())
-                + permissibleTimespan + 1
+                + permissibleTimespan + 10
         );
 
-        vm.expectRevert(BlockRootOracle.PermissibleTimespanLapsed.selector);
         vm.startPrank(admin);
+        vm.expectRevert(BlockRootOracle.PermissibleTimespanLapsed.selector);
         br.transition(abi.encode(journal_), receipt.seal);
         vm.stopPrank();
     }
@@ -447,8 +466,8 @@ contract RiscZeroTransceiverTest is Test {
         BlockRootOracle.Journal memory journal = BlockRootOracle.Journal({
             preState: root,
             postState: ConsensusState({
-                currentJustifiedCheckpoint: Checkpoint({ epoch: boundlessSlot, root: sameRoot }),
-                finalizedCheckpoint: Checkpoint({ epoch: boundlessSlot, root: sameRoot })
+                currentJustifiedCheckpoint: Checkpoint({ epoch: root.finalizedCheckpoint.epoch + 1, root: sameRoot }),
+                finalizedCheckpoint: Checkpoint({ epoch: root.finalizedCheckpoint.epoch + 1, root: sameRoot })
             }),
             finalizedSlot: boundlessSlot
         });

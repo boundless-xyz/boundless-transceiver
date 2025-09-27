@@ -14,8 +14,8 @@
 #![no_main]
 
 use alloy_sol_types::SolValue;
-use common::{from_wormhole_address, GuestInput, IBoundlessTransceiver, Journal};
-use risc0_steel::{ethereum::ETH_MAINNET_CHAIN_SPEC, Event};
+use common::{GuestInput, IBoundlessTransceiver, Journal, from_wormhole_address};
+use risc0_steel::{Event, ethereum::ETH_MAINNET_CHAIN_SPEC};
 use risc0_zkvm::guest::env;
 
 risc0_zkvm::guest::entry!(main);
@@ -30,7 +30,9 @@ fn main() {
     // Query the `SendTransceiverMessage` events of the contract and ensure it contains the expected message digest
     let event = Event::new::<IBoundlessTransceiver::SendTransceiverMessage>(&env);
     let logs = &event
-        .address(from_wormhole_address(input.contract_addr))
+        .address(
+            from_wormhole_address(input.contract_addr).expect("Failed to parse wormhole address"),
+        )
         .query();
     assert!(
         logs.iter()

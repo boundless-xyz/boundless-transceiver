@@ -74,6 +74,7 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
 
     error InvalidArgument();
     error InvalidPreState();
+    error InvalidPostState();
     error PermissibleTimespanLapsed();
     error UnauthorizedEmitterChainId();
     error UnauthorizedEmitterAddress();
@@ -122,12 +123,9 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     /// @param seal RISC Zero cryptographic proof validating the state transition
     function transition(bytes calldata journalData, bytes calldata seal) external {
         Journal memory journal = abi.decode(journalData, (Journal));
-        if (!_compareConsensusState(currentState, journal.preState)) {
-            revert InvalidPreState();
-        }
-        if (!_permissibleTransition(journal.preState)) {
-            revert PermissibleTimespanLapsed();
-        }
+        require(_compareConsensusState(currentState, journal.preState), InvalidPreState());
+        require(_validPostState(journal.postState), InvalidPostState());
+        require(_permissibleTransition(journal.preState), PermissibleTimespanLapsed());
 
         bytes32 journalHash = sha256(journalData);
         IRiscZeroVerifier(VERIFIER).verify(seal, imageID, journalHash);
@@ -143,12 +141,8 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
         if (!valid) {
             revert(reason);
         }
-        if (vm.emitterChainId != EMITTER_CHAIN_ID) {
-            revert UnauthorizedEmitterChainId();
-        }
-        if (vm.emitterAddress != BEACON_EMITTER) {
-            revert UnauthorizedEmitterAddress();
-        }
+        require(vm.emitterChainId == EMITTER_CHAIN_ID, UnauthorizedEmitterChainId());
+        require(vm.emitterAddress == BEACON_EMITTER, UnauthorizedEmitterAddress());
 
         (uint64 slot, bytes32 root) = abi.decode(vm.payload, (uint64, bytes32));
 
@@ -177,16 +171,15 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     }
 
     function updateImageID(bytes32 newImageID) external onlyRole(ADMIN_ROLE) {
-        if (newImageID == imageID) revert InvalidArgument();
+        require(newImageID != imageID, InvalidArgument());
 
         emit ImageIDUpdated(newImageID, imageID);
         imageID = newImageID;
     }
 
     function updatePermissibleTimespan(uint24 newPermissibleTimespan) external onlyRole(ADMIN_ROLE) {
-        if (newPermissibleTimespan == permissibleTimespan) {
-            revert InvalidArgument();
-        }
+        require(newPermissibleTimespan != permissibleTimespan, InvalidArgument());
+
         permissibleTimespan = newPermissibleTimespan;
         emit PermissibleTimespanUpdated(newPermissibleTimespan);
     }
@@ -236,6 +229,15 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
         return transitionTimespan <= uint256(permissibleTimespan);
     }
 
+    /// @notice Check if a post state is valid
+    /// @dev Ensures that the `postState.currentJustifiableCheckpoint` of the journal is set not set in the future
+    /// @param state The consensus state to check
+    /// @return Whether the `postState` is set in the past
+    function _validPostState(ConsensusState memory state) internal view returns (bool) {
+        uint256 epochTimestamp = Beacon.epochTimestamp(state.currentJustifiedCheckpoint.epoch, BEACON_CONFIG);
+        return epochTimestamp <= block.timestamp;
+    }
+
     /// @notice Generates a unique hash for a checkpoint at a given slot
     /// @dev Creates a unique identifier for block that was included in the chain at the given slot
     /// @param slot The slot number
@@ -253,7 +255,6 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
     function _confirm(uint64 slot, bytes32 root, uint16 flag) internal {
         CheckpointAttestation storage attestation = attestations[_checkpointHash(slot, root)];
         attestation.confirmations = _confirm(attestation.confirmations, flag);
-        // TODO: Verify if blockroot collision is possible
         if (roots[slot] == UNDEFINED_ROOT) {
             roots[slot] = root;
         }
@@ -289,9 +290,7 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
         returns (bool)
     {
         (uint240 blockId, uint16 version) = SteelEncoding.decodeVersionedID(commitment.id);
-        if (version != 2) {
-            revert Steel.InvalidCommitmentVersion(version);
-        }
+        require(version == 2, Steel.InvalidCommitmentVersion(version));
 
         return validateReceiverCommitment(SafeCast.toUint64(blockId), commitment.digest, confirmationLevel);
     }

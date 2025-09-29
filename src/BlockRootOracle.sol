@@ -39,7 +39,7 @@ contract BlockRootOracle is AccessControl, ICommitmentValidator {
 
     /// @notice The current consensus state of the beacon chain
     /// @dev Updated atomically through state transitions to ensure consistency
-    ConsensusState private currentState;
+    ConsensusState public currentState;
 
     bytes32 public imageID;
 

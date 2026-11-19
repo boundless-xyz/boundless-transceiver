@@ -1,3 +1,5 @@
+> **Archived:** Historical Wormhole transceiver reference. For context on the Boundless proving protocol pause, see the [Boundless Foundation announcement](https://boundlessfdn.org/blog/zkc-the-ai-access-coin).
+
 # Boundless Transceiver Project
 
 ## Overview
